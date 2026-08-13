@@ -1,17 +1,39 @@
 import React, { useState } from 'react';
-import FraudTriageDashboard from './FraudTriageDashboard';
+import EtransferHomeView from './EtransferHomeView';
 import ClusterExplorerView from './ClusterExplorerView';
-import FraudInvestigationView from './FraudInvestigationView';
+import FraudTriageDashboard from './FraudTriageDashboard';
 import RuleEngineView from './RuleEngineView';
+import ReportsView from './ReportsView';
+import WatchlistsView from './WatchlistsView';
 import { generateSampleEtransferData } from './utils/excelDataLoader';
 
 function App() {
-  const [currentView, setCurrentView] = useState('explorer');
+  // Default View: LEON Executive Command Center Home ('home')
+  const [currentView, setCurrentView] = useState('home');
   const [dataState, setDataState] = useState(() => generateSampleEtransferData(200));
   const [selectedGroupId, setSelectedGroupId] = useState(null);
 
+  const handleLoadSampleData = () => {
+    const sample = generateSampleEtransferData(250);
+    setDataState(sample);
+    if (sample.groupedEntities.length > 0) {
+      setSelectedGroupId(sample.groupedEntities[0].id);
+    }
+  };
+
   return (
     <>
+      {/* 1. LEON EXECUTIVE COMMAND CENTER HOME */}
+      {currentView === 'home' && (
+        <EtransferHomeView
+          dataState={dataState}
+          onNavigate={setCurrentView}
+          onLoadSampleData={handleLoadSampleData}
+          onDataIngested={setDataState}
+        />
+      )}
+
+      {/* 2. CLUSTER & ENTITY EXPLORER */}
       {currentView === 'explorer' && (
         <ClusterExplorerView
           dataState={dataState}
@@ -20,11 +42,12 @@ function App() {
             setSelectedGroupId(groupId);
             setCurrentView('dashboard');
           }}
-          onOpenUploadModal={() => setCurrentView('dashboard')}
+          onOpenUploadModal={() => setCurrentView('home')}
         />
       )}
 
-      {currentView === 'dashboard' && (
+      {/* 3. ENTITY TRIAGE & INVESTIGATION VIEW */}
+      {(currentView === 'dashboard' || currentView === 'investigation') && (
         <FraudTriageDashboard
           onNavigate={setCurrentView}
           externalDataState={dataState}
@@ -34,12 +57,19 @@ function App() {
         />
       )}
 
-      {currentView === 'investigation' && (
-        <FraudInvestigationView onNavigate={setCurrentView} />
-      )}
-
+      {/* 4. RULE ENGINE & MANAGEMENT */}
       {currentView === 'rules' && (
         <RuleEngineView onNavigate={setCurrentView} />
+      )}
+
+      {/* 5. REPORTS & ANALYTICS */}
+      {currentView === 'reports' && (
+        <ReportsView onNavigate={setCurrentView} />
+      )}
+
+      {/* 6. WATCHLISTS & SANCTIONS */}
+      {currentView === 'watchlists' && (
+        <WatchlistsView onNavigate={setCurrentView} />
       )}
     </>
   );

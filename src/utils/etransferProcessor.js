@@ -534,6 +534,8 @@ export function groupTransactions(normalizedRecords) {
       riskScore = Math.max(riskScore, 85);
     }
 
+    const primaryCorp = group.transactions.find(t => t.corporation_code && t.corporation_code !== 'N/A')?.corporation_code || 'Unspecified Corporation';
+
     return {
       id: `GRP-${index + 1}`,
       grouping_key: group.grouping_key,
@@ -541,6 +543,7 @@ export function groupTransactions(normalizedRecords) {
       transaction_direction: group.transaction_direction,
       client_id: group.client_id,
       client_name: group.client_name,
+      corporation_code: primaryCorp,
       customer_id: group.customer_id,
       customer_account: group.customer_account,
       transaction_count: group.transaction_count,

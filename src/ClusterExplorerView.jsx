@@ -182,26 +182,30 @@ const ClusterExplorerView = ({
     <div className="flex h-screen bg-[#121212] text-gray-300 font-sans overflow-hidden">
 
       {/* ========================================================================= */}
-      {/* 0. GLOBAL LEFT NAVIGATION RAIL                                           */}
+      {/* 0. GLOBAL LEFT NAVIGATION RAIL WITH LEON BRANDING                          */}
       {/* ========================================================================= */}
-      <nav className="w-16 bg-[#121212] border-r border-gray-800 flex flex-col items-center py-4 shrink-0 z-30 shadow-xl">
+      <nav className="w-20 bg-[#12141c] border-r border-gray-800/80 flex flex-col items-center py-4 shrink-0 z-30 shadow-2xl">
         <button
-          onClick={() => onNavigate && onNavigate('dashboard')}
-          className="w-8 h-8 bg-indigo-600 rounded flex items-center justify-center text-white font-bold mb-8 shadow-lg shadow-indigo-900/50 hover:bg-indigo-500 transition-colors cursor-pointer"
-          title="E-Transfer Dashboard Home"
+          onClick={() => onNavigate && onNavigate('home')}
+          className="w-12 h-12 bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-800 rounded-xl flex flex-col items-center justify-center text-white font-extrabold mb-8 shadow-lg shadow-indigo-900/50 hover:scale-105 transition-all cursor-pointer border border-indigo-400/30 group"
+          title="LEON - Fraud Prevention & AML Home"
         >
-          T
+          <span className="text-[11px] tracking-tighter leading-none text-indigo-200 font-black group-hover:text-white">LEON</span>
+          <span className="text-[7px] tracking-widest text-indigo-300 uppercase font-mono mt-0.5">AML</span>
         </button>
 
-        <div className="flex flex-col space-y-6 w-full">
-          {/* Alerts Queue / Triage */}
+        <div className="flex flex-col space-y-6 w-full items-center">
+          
+          {/* HOME */}
           <button
-            onClick={() => onNavigate && onNavigate('dashboard')}
-            className="flex justify-center w-full group relative text-gray-500 hover:text-gray-300 transition-colors cursor-pointer"
+            onClick={() => onNavigate && onNavigate('home')}
+            className="flex justify-center w-full group relative text-gray-500 hover:text-indigo-400 transition-colors cursor-pointer"
           >
-            <Inbox size={20} />
-            <span className="absolute left-14 bg-gray-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-md">
-              Alerts Queue
+            <div className="p-2.5 rounded-xl hover:bg-gray-800">
+              <Activity size={20} />
+            </div>
+            <span className="absolute left-16 bg-gray-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-md">
+              Executive Command Center
             </span>
           </button>
 
@@ -211,53 +215,50 @@ const ClusterExplorerView = ({
             className="flex justify-center w-full group relative cursor-pointer"
           >
             <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-indigo-500 rounded-r"></div>
-            <Network size={20} className="text-indigo-400" />
-            <span className="absolute left-14 bg-gray-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-md">
+            <div className="p-2.5 rounded-xl bg-indigo-900/40 text-indigo-400 border border-indigo-700/50">
+              <Network size={20} />
+            </div>
+            <span className="absolute left-16 bg-gray-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-md">
               Cluster & Entity Explorer
             </span>
           </button>
 
-          {/* Investigation View */}
+          {/* Rule Library */}
           <button
-            onClick={() => onNavigate && onNavigate('investigation')}
-            className="flex justify-center w-full group relative text-gray-500 hover:text-gray-300 transition-colors cursor-pointer"
+            onClick={() => onNavigate && onNavigate('rules')}
+            className="flex justify-center w-full group relative text-gray-500 hover:text-indigo-400 transition-colors cursor-pointer"
           >
-            <Briefcase size={20} />
-            <span className="absolute left-14 bg-gray-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-md">
-              Investigation View
+            <div className="p-2.5 rounded-xl hover:bg-gray-800">
+              <Zap size={20} />
+            </div>
+            <span className="absolute left-16 bg-gray-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-md">
+              Rule Management
+            </span>
+          </button>
+
+          {/* Reports & Analytics */}
+          <button
+            onClick={() => onNavigate && onNavigate('reports')}
+            className="flex justify-center w-full group relative text-gray-500 hover:text-indigo-400 transition-colors cursor-pointer"
+          >
+            <div className="p-2.5 rounded-xl hover:bg-gray-800">
+              <FileBarChart size={20} />
+            </div>
+            <span className="absolute left-16 bg-gray-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-md">
+              Reports & Analytics
             </span>
           </button>
 
           {/* Watchlists */}
           <button
-            onClick={() => alert('Watchlists module loaded.')}
-            className="flex justify-center w-full group relative text-gray-500 hover:text-gray-300 transition-colors cursor-pointer"
-          >
-            <ListIcon size={20} />
-            <span className="absolute left-14 bg-gray-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-md">
-              Watchlists
-            </span>
-          </button>
-
-          {/* Rule Engine */}
-          <button
-            onClick={() => onNavigate && onNavigate('rules')}
+            onClick={() => onNavigate && onNavigate('watchlists')}
             className="flex justify-center w-full group relative text-gray-500 hover:text-indigo-400 transition-colors cursor-pointer"
           >
-            <Zap size={20} />
-            <span className="absolute left-14 bg-gray-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-md">
-              Rule Management
-            </span>
-          </button>
-
-          {/* Reports */}
-          <button
-            onClick={() => alert('E-Transfer Risk Reports & Analytics generated.')}
-            className="flex justify-center w-full group relative text-gray-500 hover:text-indigo-400 transition-colors cursor-pointer"
-          >
-            <FileBarChart size={20} />
-            <span className="absolute left-14 bg-gray-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-md">
-              Reports & Analytics
+            <div className="p-2.5 rounded-xl hover:bg-gray-800">
+              <ListIcon size={20} />
+            </div>
+            <span className="absolute left-16 bg-gray-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-md">
+              Watchlists & Sanctions
             </span>
           </button>
         </div>
@@ -484,9 +485,7 @@ const ClusterExplorerView = ({
                     else if (group.risk_level === 'Elevated') riskBadgeStyle = 'bg-amber-950/80 text-amber-300 border-amber-800';
                     else if (group.risk_level === 'Review Required') riskBadgeStyle = 'bg-purple-950/80 text-purple-300 border-purple-800';
 
-                    const corpDisplay = group.transactions && group.transactions[0]?.corporation_code
-                      ? group.transactions[0].corporation_code
-                      : group.client_id;
+                    const corpDisplay = group.corporation_code || (group.transactions && group.transactions[0]?.corporation_code) || 'Unspecified Corporation';
 
                     return (
                       <tr key={group.id || idx} className="hover:bg-indigo-950/20 transition-colors group">
