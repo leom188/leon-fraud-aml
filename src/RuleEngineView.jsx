@@ -1,341 +1,722 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
-  Zap, Inbox, Briefcase, List as ListIcon, Settings, FileBarChart,
-  Search, Plus, Filter, Edit2, Play, Pause, Trash2, Clock, 
-  ChevronRight, AlertTriangle, CheckCircle, ShieldAlert, MoreVertical,
-  Save, X, CornerDownRight, Database
+  Zap,
+  Inbox,
+  Briefcase,
+  List as ListIcon,
+  Settings,
+  FileBarChart,
+  Search,
+  Plus,
+  Filter,
+  Edit2,
+  Play,
+  Pause,
+  Trash2,
+  Clock,
+  ChevronRight,
+  AlertTriangle,
+  CheckCircle,
+  ShieldAlert,
+  MoreVertical,
+  Save,
+  X,
+  CornerDownRight,
+  Database,
+  Activity,
+  Network,
+  Sparkles,
+  Sliders,
+  Tag,
+  Check
 } from 'lucide-react';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from './components/ui/card';
+import { Badge } from './components/ui/badge';
+import { Button } from './components/ui/button';
+import { Input } from './components/ui/input';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter
+} from './components/ui/dialog';
 
-const RuleEngineView = ({ onNavigate }) => {
+const INITIAL_RULES = [
+  {
+    id: 'R-1285',
+    name: 'High Volume Keyword Velocity',
+    type: 'Near Real-Time',
+    status: 'Active',
+    target: 'e-Transfer',
+    lastEdited: '2 days ago',
+    severity: 'Critical',
+    description: 'Triggers when an entity receives multiple small e-transfers matching illicit substance keywords (weed, canna, dispensary) in memo or recipient fields.',
+    keywords: ['weed', 'canna', 'dispensary', 'edibles', 'cbd'],
+    minAmount: 50,
+    maxAmount: 250,
+    velocityThreshold: 20
+  },
+  {
+    id: 'R-0412',
+    name: 'Fan-out / Mule Velocity Spike',
+    type: 'Near Real-Time',
+    status: 'Active',
+    target: 'EFT / ACH',
+    lastEdited: '1 week ago',
+    severity: 'Warning',
+    description: 'Detects rapid fund fan-out patterns across multiple new recipients within a short time window.',
+    keywords: [],
+    minAmount: 1000,
+    maxAmount: 10000,
+    velocityThreshold: 10
+  },
+  {
+    id: 'R-0099',
+    name: 'Platform-Level High Return Rate',
+    type: 'Real-Time',
+    status: 'Paused',
+    target: 'All Rails',
+    lastEdited: '1 month ago',
+    severity: 'Review',
+    description: 'Monitors aggregate transaction return rates crossing above the 1% risk threshold.',
+    keywords: [],
+    minAmount: 0,
+    maxAmount: 100000,
+    velocityThreshold: 50
+  },
+];
+
+const RuleEngineView = ({ onNavigate, dataState }) => {
+  const [rules, setRules] = useState(INITIAL_RULES);
+  const [selectedRuleId, setSelectedRuleId] = useState('R-1285');
   const [isEditing, setIsEditing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSimulating, setIsSimulating] = useState(false);
+  const [simResults, setSimResults] = useState(null);
+  const [toastMsg, setToastMsg] = useState('');
 
-  // Mock Rules Data
-  const [rules] = useState([
-    { id: 'R-1285', name: 'High Volume Keyword Velocity', type: 'Near Real-Time', status: 'Active', target: 'e-Transfer', lastEdited: '2 days ago' },
-    { id: 'R-0412', name: 'Fan-out / Velocity Spike', type: 'Near Real-Time', status: 'Active', target: 'EFT', lastEdited: '1 week ago' },
-    { id: 'R-0099', name: 'Platform-Level Anomaly', type: 'Real-Time', status: 'Paused', target: 'All Rails', lastEdited: '1 month ago' },
-  ]);
+  // Editable Form Buffer
+  const [editName, setEditName] = useState('');
+  const [editDesc, setEditDesc] = useState('');
+  const [editMinAmount, setEditMinAmount] = useState(0);
+  const [editMaxAmount, setEditMaxAmount] = useState(0);
+  const [editVelocity, setEditVelocity] = useState(0);
+  const [editSeverity, setEditSeverity] = useState('Warning');
+  const [editKeywords, setEditKeywords] = useState([]);
+  const [newKeywordInput, setNewKeywordInput] = useState('');
+
+  const selectedRule = useMemo(() => {
+    return rules.find(r => r.id === selectedRuleId) || rules[0] || INITIAL_RULES[0];
+  }, [rules, selectedRuleId]);
+
+  const filteredRules = useMemo(() => {
+    if (!searchQuery.trim()) return rules;
+    const q = searchQuery.toLowerCase();
+    return rules.filter(r =>
+      r.name.toLowerCase().includes(q) ||
+      r.id.toLowerCase().includes(q) ||
+      r.target.toLowerCase().includes(q)
+    );
+  }, [rules, searchQuery]);
+
+  const handleSelectRule = (rule) => {
+    setSelectedRuleId(rule.id);
+    setIsEditing(false);
+    setEditName(rule.name);
+    setEditDesc(rule.description || '');
+    setEditMinAmount(rule.minAmount || 0);
+    setEditMaxAmount(rule.maxAmount || 0);
+    setEditVelocity(rule.velocityThreshold || 0);
+    setEditSeverity(rule.severity || 'Warning');
+    setEditKeywords([...(rule.keywords || [])]);
+  };
+
+  const handleStartEdit = () => {
+    setEditName(selectedRule.name);
+    setEditDesc(selectedRule.description || '');
+    setEditMinAmount(selectedRule.minAmount || 0);
+    setEditMaxAmount(selectedRule.maxAmount || 0);
+    setEditVelocity(selectedRule.velocityThreshold || 0);
+    setEditSeverity(selectedRule.severity || 'Warning');
+    setEditKeywords([...(selectedRule.keywords || [])]);
+    setIsEditing(true);
+  };
+
+  const handleSaveEdit = () => {
+    const updated = rules.map(r => {
+      if (r.id === selectedRule.id) {
+        return {
+          ...r,
+          name: editName.trim() || r.name,
+          description: editDesc.trim(),
+          minAmount: Number(editMinAmount) || 0,
+          maxAmount: Number(editMaxAmount) || 0,
+          velocityThreshold: Number(editVelocity) || 0,
+          severity: editSeverity,
+          keywords: editKeywords,
+          lastEdited: 'Just now'
+        };
+      }
+      return r;
+    });
+    setRules(updated);
+    setIsEditing(false);
+    showToast(`Rule ${selectedRule.id} logic updated successfully.`);
+  };
+
+  const handleAddKeyword = (e) => {
+    e.preventDefault();
+    if (!newKeywordInput.trim()) return;
+    const kw = newKeywordInput.trim().toLowerCase();
+    if (!editKeywords.includes(kw)) {
+      setEditKeywords([...editKeywords, kw]);
+    }
+    setNewKeywordInput('');
+  };
+
+  const handleRemoveKeyword = (kwToRemove) => {
+    setEditKeywords(editKeywords.filter(k => k !== kwToRemove));
+  };
+
+  // Interactive Live Rule Simulation against current loaded dataset
+  const handleSimulateRule = () => {
+    setIsSimulating(true);
+    setSimResults(null);
+
+    setTimeout(() => {
+      const groups = dataState?.groupedEntities || [];
+      const minA = isEditing ? Number(editMinAmount) : selectedRule.minAmount;
+      const maxA = isEditing ? Number(editMaxAmount) : selectedRule.maxAmount;
+      const vel = isEditing ? Number(editVelocity) : selectedRule.velocityThreshold;
+      const kws = isEditing ? editKeywords : (selectedRule.keywords || []);
+
+      let matchedClusters = 0;
+      let matchedTxns = 0;
+      let matchedVolume = 0;
+      const sampleHits = [];
+
+      groups.forEach(g => {
+        const txns = g.transactions || [];
+        const hasKeyword = kws.length === 0 || txns.some(t => {
+          const text = `${t.memo || ''} ${t.recipient_name || ''}`.toLowerCase();
+          return kws.some(k => text.includes(k));
+        });
+
+        const amountInRange = txns.some(t => t.amount >= minA && t.amount <= maxA);
+        const velocityBreach = g.transaction_count >= vel;
+
+        if (hasKeyword && (amountInRange || txns.length === 0) && (velocityBreach || g.transaction_count >= 1)) {
+          matchedClusters += 1;
+          matchedTxns += g.transaction_count || 0;
+          matchedVolume += g.total_amount || 0;
+          if (sampleHits.length < 5) {
+            sampleHits.push({ key: g.grouping_key, amount: g.total_amount, txCount: g.transaction_count });
+          }
+        }
+      });
+
+      const totalCount = groups.length || 1;
+      const breachRate = Math.round((matchedClusters / totalCount) * 100);
+
+      setSimResults({
+        totalClusters: groups.length,
+        matchedClusters,
+        matchedTxns,
+        matchedVolume,
+        breachRate,
+        matchedClusterSamples: sampleHits
+      });
+    }, 400);
+  };
+
+  const showToast = (msg) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(''), 3500);
+  };
 
   return (
-    <div className="flex h-screen bg-[#0a0a0a] text-gray-300 font-sans overflow-hidden">
-      
-      {/* 1. GLOBAL LEFT NAVIGATION (Consistent with Investigation View) */}
-      <nav className="w-16 bg-[#121212] border-r border-gray-800 flex flex-col items-center py-4 shrink-0 z-20 shadow-xl">
-        <button onClick={() => onNavigate('dashboard')} className="w-8 h-8 bg-indigo-600 rounded flex items-center justify-center text-white font-bold mb-8 shadow-lg shadow-indigo-900/50 hover:bg-indigo-500 transition-colors cursor-pointer">
-          T
-        </button>
-        <div className="flex flex-col space-y-6 w-full">
-          <button onClick={() => onNavigate('investigation')} className="flex justify-center w-full group relative text-gray-500 hover:text-gray-300 transition-colors">
-            <Inbox size={20} />
-            <span className="absolute left-14 bg-gray-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">Alerts Queue</span>
-          </button>
-          <button className="flex justify-center w-full group relative text-gray-500 hover:text-gray-300 transition-colors">
-            <Briefcase size={20} />
-            <span className="absolute left-14 bg-gray-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">Cases</span>
-          </button>
-          <button className="flex justify-center w-full group relative text-gray-500 hover:text-gray-300 transition-colors">
-            <ListIcon size={20} />
-            <span className="absolute left-14 bg-gray-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">Watchlists</span>
-          </button>
-          <button onClick={() => onNavigate('rules')} className="flex justify-center w-full group relative">
-            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-amber-500 rounded-r"></div>
-            <Zap size={20} className="text-amber-400" />
-            <span className="absolute left-14 bg-gray-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">Rule Engine</span>
-          </button>
-          <button className="flex justify-center w-full group relative text-gray-500 hover:text-gray-300 transition-colors">
-            <FileBarChart size={20} />
-            <span className="absolute left-14 bg-gray-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">Reports</span>
-          </button>
-        </div>
-        <div className="mt-auto mb-4">
-          <button className="flex justify-center w-full group relative text-gray-500 hover:text-gray-300 transition-colors">
-            <Settings size={20} />
-          </button>
-        </div>
-        <div className="w-8 h-8 rounded-full bg-gray-800 border-2 border-gray-700 flex items-center justify-center text-[10px] font-bold text-gray-400">
-          LM
-        </div>
-      </nav>
+    <div className="flex h-full overflow-hidden bg-slate-50 dark:bg-[#0B0E14] text-slate-900 dark:text-slate-100 font-sans transition-colors duration-200">
 
-      {/* 2. RULE LIBRARY LIST (Left Panel) */}
-      <aside className="w-80 bg-[#121212] border-r border-gray-800 flex flex-col shrink-0 z-10 shadow-[4px_0_15px_rgba(0,0,0,0.3)]">
-        <div className="p-4 border-b border-gray-800 bg-[#18181b]">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-medium text-white flex items-center">
-              Rule Library
+      {/* 1. RULE LIBRARY SIDEBAR */}
+      <aside className="w-80 bg-white dark:bg-slate-950/80 border-r border-slate-200 dark:border-slate-800/80 flex flex-col shrink-0 transition-colors duration-200">
+        <div className="p-4 border-b border-slate-200 dark:border-slate-800/80 space-y-3">
+          <div className="flex justify-between items-center">
+            <h2 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center">
+              <Zap size={16} className="mr-2 text-amber-500" />
+              Rule Library ({rules.length})
             </h2>
-            <button 
-              onClick={() => setIsEditing(true)}
-              className="bg-indigo-600 hover:bg-indigo-500 text-white p-1.5 rounded transition-colors shadow-lg shadow-indigo-900/20"
+            <Button
+              variant="default"
+              size="icon-sm"
+              onClick={() => {
+                const newId = `R-${Math.floor(1000 + Math.random() * 9000)}`;
+                const newRule = {
+                  id: newId,
+                  name: 'New Custom AML Rule',
+                  type: 'Near Real-Time',
+                  status: 'Active',
+                  target: 'e-Transfer',
+                  lastEdited: 'Just now',
+                  severity: 'Warning',
+                  description: 'Custom risk rule for automated transaction classification.',
+                  keywords: ['crypto', 'wash'],
+                  minAmount: 100,
+                  maxAmount: 500,
+                  velocityThreshold: 15
+                };
+                setRules([newRule, ...rules]);
+                handleSelectRule(newRule);
+                setIsEditing(true);
+                showToast(`Created draft rule ${newId}`);
+              }}
+              className="h-7 w-7"
               title="Create New Rule"
             >
-              <Plus size={16} />
-            </button>
+              <Plus size={14} />
+            </Button>
           </div>
-          <div className="relative mb-3">
-            <Search size={14} className="absolute left-3 top-2.5 text-gray-500" />
-            <input type="text" placeholder="Search rules..." className="w-full bg-[#121212] border border-gray-700 text-sm text-gray-300 rounded pl-9 pr-3 py-2 focus:outline-none focus:border-indigo-500 transition-colors" />
-          </div>
-          <div className="flex space-x-2 overflow-x-auto pb-1 scrollbar-hide">
-            <span className="text-[10px] uppercase font-bold bg-gray-800 text-gray-300 px-2 py-1 rounded border border-gray-600 cursor-pointer whitespace-nowrap">Active (42)</span>
-            <span className="text-[10px] uppercase font-bold bg-[#121212] text-gray-500 px-2 py-1 rounded border border-gray-800 cursor-pointer hover:bg-gray-800 whitespace-nowrap transition-colors">Drafts (3)</span>
-            <span className="text-[10px] uppercase font-bold bg-[#121212] text-gray-500 px-2 py-1 rounded border border-gray-800 cursor-pointer hover:bg-gray-800 whitespace-nowrap transition-colors">Archived (15)</span>
+
+          <div className="relative">
+            <Search size={13} className="absolute left-3 top-2.5 text-slate-400 dark:text-slate-500" />
+            <Input
+              type="text"
+              placeholder="Search rule library..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-8 h-8 text-xs"
+            />
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto">
-          {rules.map((rule, idx) => (
-            <div key={idx} className={`p-4 border-b border-gray-800 cursor-pointer transition-all ${idx === 0 && !isEditing ? 'bg-[#18181b] border-l-2 border-l-amber-500 shadow-inner' : 'hover:bg-[#1A1A1A] border-l-2 border-l-transparent opacity-70 hover:opacity-100'}`} onClick={() => setIsEditing(false)}>
-              <div className="flex justify-between items-start mb-1">
-                <span className="text-[11px] font-mono text-amber-500 font-bold">{rule.id}</span>
-                {rule.status === 'Active' ? (
-                  <span className="text-[10px] text-green-500 flex items-center bg-green-950/30 px-1.5 py-0.5 rounded border border-green-900/50"><Play size={8} className="mr-1" /> Active</span>
-                ) : (
-                  <span className="text-[10px] text-gray-500 flex items-center bg-gray-800 px-1.5 py-0.5 rounded border border-gray-700"><Pause size={8} className="mr-1" /> Paused</span>
-                )}
+        {/* Rule List Items */}
+        <div className="flex-1 overflow-y-auto divide-y divide-slate-200 dark:divide-slate-800/50">
+          {filteredRules.map((rule) => {
+            const isSelected = rule.id === selectedRuleId;
+            return (
+              <div
+                key={rule.id}
+                onClick={() => handleSelectRule(rule)}
+                className={`p-4 cursor-pointer transition-all ${
+                  isSelected
+                    ? 'bg-amber-50/50 dark:bg-slate-900/90 border-l-2 border-l-amber-500 shadow-xs dark:shadow-inner'
+                    : 'hover:bg-slate-100/70 dark:hover:bg-slate-900/40 border-l-2 border-l-transparent text-slate-600 dark:text-slate-400'
+                }`}
+              >
+                <div className="flex justify-between items-start mb-1">
+                  <span className="text-xs font-mono text-amber-700 dark:text-amber-400 font-bold">{rule.id}</span>
+                  <Badge
+                    variant={rule.status === 'Active' ? 'compliant' : 'secondary'}
+                    className="text-[9px] px-1.5 py-0 font-mono"
+                  >
+                    {rule.status === 'Active' ? '● Active' : '○ Paused'}
+                  </Badge>
+                </div>
+                <h3 className={`text-xs font-bold leading-snug mb-1 ${isSelected ? 'text-slate-900 dark:text-white' : 'text-slate-800 dark:text-slate-300'}`}>
+                  {rule.name}
+                </h3>
+                <div className="flex justify-between items-center text-[10px] text-slate-600 dark:text-slate-400 mt-2">
+                  <Badge variant="outline" className="text-[9px] px-1 py-0 font-medium">
+                    {rule.target}
+                  </Badge>
+                  <span className="flex items-center font-mono font-medium">
+                    <Clock size={10} className="mr-1 text-slate-500" /> {rule.lastEdited}
+                  </span>
+                </div>
               </div>
-              <h3 className="text-sm font-medium text-white mb-1 leading-tight">{rule.name}</h3>
-              <div className="flex justify-between items-center mt-2">
-                <span className="text-[10px] text-gray-400 bg-gray-800 px-1.5 py-0.5 rounded">{rule.type}</span>
-                <span className="text-[10px] text-gray-500 flex items-center"><Clock size={10} className="mr-1" /> {rule.lastEdited}</span>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </aside>
 
-      {/* 3. MAIN WORKSPACE (Rule Builder) */}
-      <main className="flex-1 flex flex-col min-w-0 bg-[#0a0a0a] overflow-y-auto">
+      {/* 2. RULE BUILDER & LOGIC WORKSPACE */}
+      <main className="flex-1 flex flex-col min-w-0 overflow-y-auto">
         
-        {/* Header */}
-        <header className="p-6 border-b border-gray-800 bg-[#18181b] shrink-0 sticky top-0 z-10 shadow-sm flex justify-between items-start">
-          <div>
-            <div className="flex items-center space-x-3 mb-2">
-              <span className="text-xs font-mono text-amber-500 bg-amber-950/20 border border-amber-900/50 px-2 py-0.5 rounded">
-                {isEditing ? 'DRAFT-NEW' : 'R-1285'}
+        {/* Workspace Top Header */}
+        <header className="p-6 border-b border-slate-200 dark:border-slate-800/80 bg-white/90 dark:bg-slate-950/60 sticky top-0 z-20 backdrop-blur flex justify-between items-center transition-colors duration-200">
+          <div className="space-y-1 max-w-xl">
+            <div className="flex items-center space-x-2.5">
+              <span className="text-xs font-mono text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 px-2 py-0.5 rounded font-bold">
+                {selectedRule.id}
               </span>
-              <span className="text-[10px] uppercase font-bold text-gray-500 bg-gray-800 px-1.5 py-0.5 rounded">e-Transfer Rail</span>
+              <Badge variant="cyan" className="text-[10px] uppercase font-mono">
+                {selectedRule.target}
+              </Badge>
+              <Badge
+                variant={(isEditing ? editSeverity : selectedRule.severity) === 'Critical' ? 'critical' : 'elevated'}
+                className="text-[10px]"
+              >
+                {isEditing ? editSeverity : selectedRule.severity} Severity
+              </Badge>
             </div>
+
             {isEditing ? (
-              <input type="text" defaultValue="New Illicit Substance Rule" className="text-2xl font-light text-white bg-transparent border-b border-gray-600 focus:border-indigo-500 focus:outline-none w-96 pb-1 transition-colors" />
+              <Input
+                type="text"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                className="text-lg font-bold text-slate-900 dark:text-white h-9 mt-1"
+                placeholder="Rule Name..."
+              />
             ) : (
-              <h1 className="text-2xl font-light text-white">High Volume Keyword Velocity</h1>
+              <h1 className="text-xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+                {selectedRule.name}
+              </h1>
             )}
           </div>
-          
-          <div className="flex space-x-3">
-            <button className="bg-[#121212] border border-gray-700 text-gray-300 px-4 py-2 rounded text-sm hover:text-white hover:border-gray-500 transition-colors flex items-center">
-              <Database size={16} className="mr-2 text-gray-500" /> Test vs Historical
-            </button>
+
+          <div className="flex items-center space-x-3">
+            {toastMsg && (
+              <div className="bg-emerald-50 dark:bg-emerald-950 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs px-3 py-1.5 rounded-xl flex items-center shadow animate-in fade-in">
+                <CheckCircle size={14} className="mr-1.5 text-emerald-600 dark:text-emerald-400" />
+                {toastMsg}
+              </div>
+            )}
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSimulateRule}
+              className="text-xs font-semibold"
+            >
+              <Database size={14} className="mr-1.5 text-sky-600 dark:text-sky-400" />
+              Simulate vs Active Batch
+            </Button>
+
             {isEditing ? (
               <>
-                <button onClick={() => setIsEditing(false)} className="bg-[#121212] border border-gray-700 text-gray-300 px-4 py-2 rounded text-sm hover:text-white hover:border-gray-500 transition-colors">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsEditing(false)}
+                  className="text-xs"
+                >
                   Cancel
-                </button>
-                <button className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded text-sm font-medium transition-colors shadow-lg shadow-indigo-900/20 flex items-center">
-                  <Save size={16} className="mr-2" /> Save Rule
-                </button>
+                </Button>
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={handleSaveEdit}
+                  className="text-xs font-bold"
+                >
+                  <Save size={14} className="mr-1.5" /> Save Changes
+                </Button>
               </>
             ) : (
-              <button onClick={() => setIsEditing(true)} className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded text-sm font-medium transition-colors shadow-lg shadow-indigo-900/20 flex items-center">
-                <Edit2 size={16} className="mr-2" /> Edit Rule
-              </button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleStartEdit}
+                className="text-xs font-semibold"
+              >
+                <Edit2 size={14} className="mr-1.5 text-sky-600 dark:text-sky-400" /> Edit Rule Logic
+              </Button>
             )}
           </div>
         </header>
 
         {/* Builder Content */}
-        <div className="p-8 max-w-5xl mx-auto w-full space-y-8">
+        <div className="p-6 md:p-8 max-w-5xl space-y-6">
           
-          {/* Settings Section */}
-          <section className="bg-[#121212] border border-gray-800 rounded-lg p-6 shadow-sm">
-            <h3 className="text-sm font-bold uppercase tracking-wider text-gray-400 mb-6 flex items-center">
-              <Settings size={16} className="mr-2" /> Rule Configuration
-            </h3>
-            
-            <div className="grid grid-cols-2 gap-8">
-              <div>
-                <label className="block text-xs text-gray-500 mb-2">Description / Analyst Instructions</label>
-                <textarea 
-                  disabled={!isEditing}
-                  defaultValue="Triggers when a sub-merchant receives multiple small e-transfers containing drug-related keywords in the memo or security question. Indicates potential unlicensed dispensary."
-                  className="w-full h-24 bg-[#1A1A1A] border border-gray-800 rounded p-3 text-sm text-gray-300 focus:outline-none focus:border-indigo-500 transition-colors resize-none disabled:opacity-70 disabled:cursor-not-allowed"
+          {/* Rule Description */}
+          <Card>
+            <CardHeader className="p-5 pb-3 border-b border-slate-200 dark:border-slate-800">
+              <CardTitle className="text-sm font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center">
+                <Settings size={16} className="mr-2 text-sky-600 dark:text-sky-400" />
+                Analyst Policy & Description
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-5">
+              {isEditing ? (
+                <textarea
+                  value={editDesc}
+                  onChange={(e) => setEditDesc(e.target.value)}
+                  className="w-full bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl p-3 text-xs text-slate-900 dark:text-slate-200 focus:outline-none focus:border-sky-500 h-20 resize-none shadow-xs"
+                  placeholder="Analyst guidelines on when this rule triggers..."
                 />
-              </div>
+              ) : (
+                <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                  {selectedRule.description || 'No description provided for this detection rule.'}
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Condition Logic Parameters Card */}
+          <Card>
+            <CardHeader className="p-5 pb-3 border-b border-slate-200 dark:border-slate-800">
+              <CardTitle className="text-sm font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center">
+                <Sliders size={16} className="mr-2 text-sky-600 dark:text-sky-400" />
+                Condition Logic Parameters (Live Editable)
+              </CardTitle>
+              <CardDescription className="text-xs text-slate-500 dark:text-slate-400">
+                If ALL conditions are satisfied within an entity cluster, the rule fires and escalates the risk score.
+              </CardDescription>
+            </CardHeader>
+
+            <CardContent className="p-5 space-y-4">
               
-              <div className="space-y-5">
-                <div>
-                  <label className="block text-xs text-gray-500 mb-2">Payment Rail Selector</label>
-                  <select disabled={!isEditing} className="w-full bg-[#1A1A1A] border border-gray-800 rounded p-2 text-sm text-gray-300 focus:outline-none focus:border-indigo-500 disabled:opacity-70 disabled:cursor-not-allowed">
-                    <option>E-Transfer (Interac)</option>
-                    <option>CARD (Visa/Mastercard)</option>
-                    <option>EFT / ACH</option>
-                    <option>Wire Transfer</option>
-                  </select>
-                  <p className="text-[10px] text-gray-500 mt-1">* Condition fields below dynamically adapt to the selected rail.</p>
+              {/* Condition 1: Amount Threshold */}
+              <div className="p-4 bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800/80 rounded-xl space-y-2">
+                <div className="flex items-center space-x-2">
+                  <Badge variant="secondary" className="font-mono text-[10px] font-bold">IF</Badge>
+                  <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">Transaction Amount (CAD)</span>
+                  <span className="text-xs text-amber-600 dark:text-amber-400 font-mono">is between</span>
                 </div>
 
-                <div>
-                  <label className="block text-xs text-gray-500 mb-2">Execution Schedule</label>
-                  <div className="flex flex-col space-y-2">
-                    <label className={`flex items-center space-x-2 cursor-pointer ${!isEditing && 'opacity-50 pointer-events-none'}`}>
-                      <input type="radio" name="schedule" defaultChecked className="accent-indigo-500" />
-                      <span className="text-sm text-gray-300">Per Transaction (Real-Time / Near Real-Time)</span>
-                    </label>
-                    <div className="flex items-center space-x-2">
-                      <label className={`flex items-center space-x-2 cursor-pointer ${!isEditing && 'opacity-50 pointer-events-none'}`}>
-                        <input type="radio" name="schedule" className="accent-indigo-500" />
-                        <span className="text-sm text-gray-300">Batch / Aggregation:</span>
-                      </label>
-                      <select disabled={!isEditing} className="bg-[#1A1A1A] border border-gray-800 rounded px-2 py-1 text-xs text-gray-300 focus:outline-none disabled:opacity-70">
-                        <option>Daily (End of Day)</option>
-                        <option>Hourly</option>
-                        <option>Weekly</option>
-                        <option>Monthly</option>
-                      </select>
+                {isEditing ? (
+                  <div className="flex items-center space-x-3 pt-1">
+                    <div className="flex items-center space-x-1.5">
+                      <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">Min $</span>
+                      <Input
+                        type="number"
+                        value={editMinAmount}
+                        onChange={(e) => setEditMinAmount(e.target.value)}
+                        className="w-24 h-8 text-xs font-mono"
+                      />
+                    </div>
+                    <span className="text-slate-400 dark:text-slate-500">—</span>
+                    <div className="flex items-center space-x-1.5">
+                      <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">Max $</span>
+                      <Input
+                        type="number"
+                        value={editMaxAmount}
+                        onChange={(e) => setEditMaxAmount(e.target.value)}
+                        className="w-28 h-8 text-xs font-mono"
+                      />
                     </div>
                   </div>
+                ) : (
+                  <span className="text-xs font-mono font-bold text-emerald-700 dark:text-emerald-400 bg-white dark:bg-slate-900 px-2.5 py-1 rounded border border-slate-200 dark:border-slate-800 inline-block shadow-xs">
+                    ${selectedRule.minAmount} — ${selectedRule.maxAmount} CAD
+                  </span>
+                )}
+              </div>
+
+              {/* Condition 2: Velocity Count */}
+              <div className="p-4 bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800/80 rounded-xl space-y-2">
+                <div className="flex items-center space-x-2">
+                  <Badge variant="cyan" className="font-mono text-[10px] font-bold">AND</Badge>
+                  <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">24-Hour Velocity Spike</span>
+                  <span className="text-xs text-amber-600 dark:text-amber-400 font-mono">exceeds threshold</span>
                 </div>
 
-                <div>
-                  <label className="block text-xs text-gray-500 mb-2">Target Entity Level</label>
-                  <select disabled={!isEditing} className="w-full bg-[#1A1A1A] border border-gray-800 rounded p-2 text-sm text-gray-300 focus:outline-none focus:border-indigo-500 disabled:opacity-70 disabled:cursor-not-allowed">
-                    <option>Sub-Merchant Cluster</option>
-                    <option>Individual Transaction</option>
-                    <option>Platform (Tier 2)</option>
-                    <option>End-User (Tier 4)</option>
+                {isEditing ? (
+                  <div className="flex items-center space-x-2 pt-1">
+                    <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">&gt;</span>
+                    <Input
+                      type="number"
+                      value={editVelocity}
+                      onChange={(e) => setEditVelocity(e.target.value)}
+                      className="w-24 h-8 text-xs font-mono"
+                    />
+                    <span className="text-xs text-slate-500 dark:text-slate-400">transactions per entity cluster</span>
+                  </div>
+                ) : (
+                  <span className="text-xs font-mono font-bold text-slate-900 dark:text-white bg-white dark:bg-slate-900 px-2.5 py-1 rounded border border-slate-200 dark:border-slate-800 inline-block shadow-xs">
+                    &gt; {selectedRule.velocityThreshold} txns / entity
+                  </span>
+                )}
+              </div>
+
+              {/* Condition 3: Illicit Keywords */}
+              <div className="p-4 bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800/80 rounded-xl space-y-3">
+                <div className="flex items-center space-x-2">
+                  <Badge variant="cyan" className="font-mono text-[10px] font-bold">AND</Badge>
+                  <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">Memo / Recipient Name / Security Answer</span>
+                  <span className="text-xs text-amber-600 dark:text-amber-400 font-mono">contains any illicit keywords</span>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  {(isEditing ? editKeywords : selectedRule.keywords).length === 0 ? (
+                    <span className="text-xs text-slate-500 italic">No keyword filter applied (matches all memos)</span>
+                  ) : (
+                    (isEditing ? editKeywords : selectedRule.keywords).map(kw => (
+                      <Badge
+                        key={kw}
+                        variant="critical"
+                        className="font-mono text-xs px-2.5 py-1 flex items-center space-x-1"
+                      >
+                        <Tag size={10} className="mr-1 opacity-70" />
+                        <span>"{kw}"</span>
+                        {isEditing && (
+                          <button
+                            onClick={() => handleRemoveKeyword(kw)}
+                            className="ml-1.5 hover:text-slate-900 dark:hover:text-white text-rose-600 dark:text-rose-300 cursor-pointer"
+                          >
+                            <X size={12} />
+                          </button>
+                        )}
+                      </Badge>
+                    ))
+                  )}
+                </div>
+
+                {isEditing && (
+                  <form onSubmit={handleAddKeyword} className="flex items-center space-x-2 pt-2">
+                    <Input
+                      type="text"
+                      placeholder="Add keyword (e.g. vape, pill, mixer)..."
+                      value={newKeywordInput}
+                      onChange={(e) => setNewKeywordInput(e.target.value)}
+                      className="max-w-xs h-8 text-xs font-mono"
+                    />
+                    <Button
+                      type="submit"
+                      variant="secondary"
+                      size="sm"
+                      className="h-8 text-xs font-semibold"
+                    >
+                      <Plus size={13} className="mr-1" /> Add Keyword
+                    </Button>
+                  </form>
+                )}
+              </div>
+
+            </CardContent>
+          </Card>
+
+          {/* Dedicated Live Simulation Card */}
+          <Card className="bg-gradient-to-r from-sky-50 via-white to-indigo-50 dark:from-sky-950/40 dark:via-slate-900/60 dark:to-indigo-950/40 border-sky-200 dark:border-sky-800/60 shadow-md dark:shadow-2xl p-6">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center space-x-2">
+                  <Sparkles size={18} className="text-sky-600 dark:text-sky-400" />
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white">Interactive Rule Simulation Engine</h3>
+                  <Badge variant="cyan" className="text-[10px]">Real-Time Dry Run</Badge>
+                </div>
+                <p className="text-xs text-slate-600 dark:text-slate-300">
+                  Simulate this rule's conditions against the active batch ({dataState?.totalRecords || 300} transactions) to test false positives and breach counts before publishing.
+                </p>
+              </div>
+
+              <Button
+                variant="default"
+                size="default"
+                onClick={handleSimulateRule}
+                className="font-extrabold px-5 py-2.5 shadow-md shrink-0 cursor-pointer text-xs"
+              >
+                <Database size={15} className="mr-2" />
+                Simulate vs Active Batch
+              </Button>
+            </div>
+          </Card>
+
+          {/* Outcome & Scoring Card */}
+          <Card>
+            <CardHeader className="p-5 pb-3 border-b border-slate-200 dark:border-slate-800">
+              <CardTitle className="text-sm font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center">
+                <ShieldAlert size={16} className="mr-2 text-rose-600 dark:text-rose-400" />
+                Action Outcome & Scoring Impact
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-5 flex flex-wrap items-center gap-8">
+              <div>
+                <span className="text-xs text-slate-500 dark:text-slate-400 block mb-1">Base Risk Score Delta</span>
+                <span className="text-2xl font-black text-rose-600 dark:text-rose-400 font-mono">+80 pts</span>
+              </div>
+              <div className="h-10 w-px bg-slate-200 dark:bg-slate-800 hidden sm:block" />
+              <div>
+                <span className="text-xs text-slate-500 dark:text-slate-400 block mb-1">Alert Severity Tier</span>
+                {isEditing ? (
+                  <select
+                    value={editSeverity}
+                    onChange={(e) => setEditSeverity(e.target.value)}
+                    className="bg-white dark:bg-slate-950 text-slate-900 dark:text-white border border-slate-300 dark:border-slate-800 rounded-lg px-2.5 py-1 text-xs font-bold focus:outline-none"
+                  >
+                    <option value="Critical">Critical (SLA: 2h)</option>
+                    <option value="Warning">Warning (SLA: 24h)</option>
+                    <option value="Review">Review (SLA: 72h)</option>
                   </select>
-                </div>
+                ) : (
+                  <Badge variant={selectedRule.severity === 'Critical' ? 'critical' : 'elevated'} className="text-xs">
+                    {selectedRule.severity} Priority Queue
+                  </Badge>
+                )}
               </div>
-            </div>
-          </section>
+            </CardContent>
+          </Card>
 
-          {/* Logic Builder Section */}
-          <section>
-            <h3 className="text-sm font-bold uppercase tracking-wider text-gray-400 mb-4 flex items-center">
-              <Zap size={16} className="mr-2" /> Base Conditions
-            </h3>
-            <p className="text-xs text-gray-500 mb-4">If ALL of these conditions are met, the rule will trigger.</p>
-            
-            <div className="space-y-3">
-              {/* Condition 1 */}
-              <div className="flex items-center space-x-3 bg-[#121212] border border-gray-800 rounded-lg p-3 group">
-                <div className="bg-gray-800 text-gray-400 text-[10px] font-bold px-2 py-1 rounded">IF</div>
-                <select disabled={!isEditing} className="bg-[#1A1A1A] border border-gray-700 rounded p-1.5 text-sm text-white w-48 disabled:opacity-70">
-                  <option>Transaction Amount</option>
-                  <option>Sender Name</option>
-                  <option>Memo Field</option>
-                </select>
-                <select disabled={!isEditing} className="bg-[#1A1A1A] border border-gray-700 rounded p-1.5 text-sm text-amber-400 w-32 disabled:opacity-70">
-                  <option>is between</option>
-                  <option>is greater than</option>
-                </select>
-                <input disabled={!isEditing} type="text" defaultValue="$50 and $200" className="bg-[#1A1A1A] border border-gray-700 rounded p-1.5 text-sm text-white flex-1 disabled:opacity-70" />
-                {isEditing && <button className="text-gray-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={16}/></button>}
-              </div>
-
-              {/* Condition 2 */}
-              <div className="flex items-center space-x-3 bg-[#121212] border border-gray-800 rounded-lg p-3 group">
-                <div className="bg-indigo-900/30 text-indigo-400 border border-indigo-900/50 text-[10px] font-bold px-2 py-1 rounded">AND</div>
-                <select disabled={!isEditing} className="bg-[#1A1A1A] border border-gray-700 rounded p-1.5 text-sm text-white w-48 disabled:opacity-70">
-                  <option>Velocity (24h count)</option>
-                </select>
-                <select disabled={!isEditing} className="bg-[#1A1A1A] border border-gray-700 rounded p-1.5 text-sm text-amber-400 w-32 disabled:opacity-70">
-                  <option>is greater than</option>
-                </select>
-                <input disabled={!isEditing} type="text" defaultValue="50 transactions" className="bg-[#1A1A1A] border border-gray-700 rounded p-1.5 text-sm text-white flex-1 disabled:opacity-70" />
-                {isEditing && <button className="text-gray-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={16}/></button>}
-              </div>
-
-              {/* Condition 3 */}
-              <div className="flex items-center space-x-3 bg-[#121212] border border-gray-800 rounded-lg p-3 group relative">
-                <div className="absolute -left-1.5 top-1/2 w-3 h-px bg-gray-700"></div>
-                <div className="absolute -left-1.5 top-0 w-px h-1/2 bg-gray-700"></div>
-                <div className="bg-indigo-900/30 text-indigo-400 border border-indigo-900/50 text-[10px] font-bold px-2 py-1 rounded">AND</div>
-                <select disabled={!isEditing} className="bg-[#1A1A1A] border border-gray-700 rounded p-1.5 text-sm text-white w-48 disabled:opacity-70">
-                  <option>Memo OR Security Answer</option>
-                </select>
-                <select disabled={!isEditing} className="bg-[#1A1A1A] border border-gray-700 rounded p-1.5 text-sm text-amber-400 w-32 disabled:opacity-70">
-                  <option>contains any from list</option>
-                </select>
-                <div className="flex-1 flex items-center space-x-2">
-                  <div className="bg-purple-900/20 border border-purple-900/50 text-purple-300 rounded px-3 py-1.5 text-sm flex items-center cursor-pointer hover:bg-purple-900/40 transition-colors">
-                    <ListIcon size={14} className="mr-2" /> Global: Drug Keywords V2
-                  </div>
-                </div>
-                {isEditing && <button className="text-gray-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={16}/></button>}
-              </div>
-
-              {isEditing && (
-                <button className="text-sm text-indigo-400 hover:text-indigo-300 flex items-center mt-2 px-2 transition-colors">
-                  <Plus size={14} className="mr-1" /> Add Condition
-                </button>
-              )}
-            </div>
-          </section>
-
-          {/* Sub-Rules / Modifiers Section */}
-          <section>
-            <h3 className="text-sm font-bold uppercase tracking-wider text-gray-400 mb-4 flex items-center">
-              <CornerDownRight size={16} className="mr-2" /> Sub-Rules (Score Modifiers)
-            </h3>
-            <p className="text-xs text-gray-500 mb-4">Adjust the final risk score based on mitigating or exacerbating factors to reduce false positives.</p>
-            
-            <div className="space-y-3">
-              <div className="bg-[#1A1A1A] border border-gray-800 rounded-lg p-4">
-                <div className="flex items-center space-x-3 mb-3">
-                  <div className="bg-gray-800 text-gray-400 text-[10px] font-bold px-2 py-1 rounded">IF</div>
-                  <span className="text-sm text-white">Sender Name</span>
-                  <span className="text-sm text-amber-400">contains any from list</span>
-                  <div className="bg-purple-900/20 border border-purple-900/50 text-purple-300 rounded px-2 py-1 text-xs flex items-center">
-                    <ListIcon size={12} className="mr-1" /> Global: Drug Keywords V2
-                  </div>
-                </div>
-                <div className="flex items-center space-x-3 ml-12">
-                  <CornerDownRight size={14} className="text-gray-600" />
-                  <div className="bg-green-950/30 text-green-500 border border-green-900/50 text-[10px] font-bold px-2 py-1 rounded">THEN</div>
-                  <span className="text-sm text-white">Reduce Final Score by</span>
-                  <span className="text-sm font-bold text-green-400">50 points</span>
-                  <span className="text-xs text-gray-500 italic ml-2">(Reason: Person's actual name might be "Weed" or "Green")</span>
-                </div>
-              </div>
-
-              {isEditing && (
-                <button className="text-sm text-indigo-400 hover:text-indigo-300 flex items-center mt-2 px-2 transition-colors">
-                  <Plus size={14} className="mr-1" /> Add Sub-Rule
-                </button>
-              )}
-            </div>
-          </section>
-
-          {/* Action Outcome Section */}
-          <section className="bg-[#1A1A1A] border-t border-b border-indigo-900/30 p-6 -mx-8 px-8">
-            <h3 className="text-sm font-bold uppercase tracking-wider text-indigo-400 mb-6 flex items-center">
-              <ShieldAlert size={16} className="mr-2" /> Outcome & Actions
-            </h3>
-            
-            <div className="flex items-center space-x-8">
-              <div>
-                <label className="block text-xs text-gray-500 mb-2">Base Risk Score Applied</label>
-                <div className="flex items-center">
-                  <span className="text-2xl font-bold text-red-400 mr-2">80</span>
-                  <span className="text-sm text-gray-500">/ 100</span>
-                </div>
-              </div>
-              <div className="h-12 w-px bg-gray-800"></div>
-              <div>
-                <label className="block text-xs text-gray-500 mb-2">Alert Severity</label>
-                <select disabled={!isEditing} className="bg-[#121212] border border-red-900/50 rounded p-2 text-sm text-red-400 font-bold focus:outline-none disabled:opacity-100">
-                  <option>Critical (SLA: 2h)</option>
-                  <option>Warning (SLA: 24h)</option>
-                  <option>Review (SLA: 72h)</option>
-                </select>
-              </div>
-            </div>
-          </section>
-          
         </div>
       </main>
+
+      {/* DRY-RUN SIMULATION MODAL */}
+      <Dialog open={isSimulating} onOpenChange={setIsSimulating}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold flex items-center">
+              <Sparkles size={18} className="mr-2 text-sky-600 dark:text-sky-400" />
+              Live Rule Simulation Results
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Evaluated rule logic across all records in your active session batch.
+            </DialogDescription>
+          </DialogHeader>
+
+          {simResults ? (
+            <div className="space-y-4 py-2">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl">
+                  <span className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 block">Matched Clusters</span>
+                  <span className="text-xl font-bold font-mono text-rose-600 dark:text-rose-400">{simResults.matchedClusters}</span>
+                  <span className="text-[10px] text-slate-400 dark:text-slate-500 block">of {simResults.totalClusters} total clusters</span>
+                </div>
+                <div className="p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl">
+                  <span className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 block">Breach Hit Rate</span>
+                  <span className="text-xl font-bold font-mono text-amber-600 dark:text-amber-400">{simResults.breachRate}%</span>
+                  <span className="text-[10px] text-slate-400 dark:text-slate-500 block">Cluster breach ratio</span>
+                </div>
+              </div>
+
+              <div className="p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl space-y-1.5 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-slate-500 dark:text-slate-400">Flagged Transaction Count:</span>
+                  <span className="font-mono font-bold text-slate-900 dark:text-white">{simResults.matchedTxns} txns</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500 dark:text-slate-400">Total Flagged Volume:</span>
+                  <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                    ${simResults.matchedVolume.toLocaleString(undefined, { minimumFractionDigits: 2 })} CAD
+                  </span>
+                </div>
+              </div>
+
+              {simResults.matchedClusterSamples && simResults.matchedClusterSamples.length > 0 && (
+                <div className="space-y-1.5">
+                  <span className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 block">
+                    Sample Flagged Entities:
+                  </span>
+                  <div className="space-y-1">
+                    {simResults.matchedClusterSamples.map((s, idx) => (
+                      <div key={idx} className="p-2 bg-slate-100 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-lg flex justify-between items-center text-xs">
+                        <span className="font-mono text-slate-900 dark:text-white font-semibold">{s.key}</span>
+                        <span className="font-mono text-emerald-600 dark:text-emerald-400 font-bold">${s.amount.toFixed(2)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="py-8 text-center text-xs text-slate-500 dark:text-slate-400">
+              Simulating rule execution across transaction graph...
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => setIsSimulating(false)}
+              className="text-xs font-bold"
+            >
+              Close Simulation
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 };

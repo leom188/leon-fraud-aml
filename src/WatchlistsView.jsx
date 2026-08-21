@@ -1,110 +1,311 @@
-import React from 'react';
-import { List as ListIcon, Plus, Trash2, Search, Activity, Network, Zap, FileBarChart } from 'lucide-react';
+import React, { useState } from 'react';
+import {
+  List as ListIcon,
+  Plus,
+  Trash2,
+  Search,
+  Activity,
+  Network,
+  Zap,
+  FileBarChart,
+  ShieldAlert,
+  AlertTriangle,
+  CheckCircle,
+  X
+} from 'lucide-react';
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableHead,
+  TableRow,
+  TableCell
+} from './components/ui/table';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from './components/ui/card';
+import { Badge } from './components/ui/badge';
+import { Button } from './components/ui/button';
+import { Input } from './components/ui/input';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter
+} from './components/ui/dialog';
 
-const WatchlistsView = ({ onNavigate }) => {
-  const sampleWatchlists = [
-    { email: 'send@bytex.ca', type: 'Illicit Merchant', addedBy: 'LEON AML System', date: '2026-08-10', risk: 'Critical' },
-    { email: 'transact@bytex.ca', type: 'Illicit Merchant Cluster', addedBy: 'Leo.moncada', date: '2026-08-11', risk: 'Critical' },
-    { email: 'orders@vapegoods.ca', type: 'High Velocity Recipient', addedBy: 'Leo.moncada', date: '2026-08-12', risk: 'Elevated' }
-  ];
+const INITIAL_WATCHLISTS = [
+  { id: 1, email: 'send@bytex.ca', type: 'Illicit Merchant (Unlicensed Dispensary)', addedBy: 'LEON AML Engine', date: '2026-08-10', risk: 'Critical' },
+  { id: 2, email: 'transact@bytex.ca', type: 'Illicit Merchant Linked Cluster', addedBy: 'Leo.moncada', date: '2026-08-11', risk: 'Critical' },
+  { id: 3, email: 'orders@vapegoods.ca', type: 'High Velocity Recipient', addedBy: 'Leo.moncada', date: '2026-08-12', risk: 'Elevated' },
+  { id: 4, email: 'sales@pvpay.ca', type: 'Shell Merchant Sub-Entity', addedBy: 'LEON AML Engine', date: '2026-08-15', risk: 'Critical' },
+  { id: 5, email: 'crypto.wash@protonmail.com', type: 'Sanctioned / Crypto Mixer', addedBy: 'Compliance Ops', date: '2026-08-18', risk: 'Critical' }
+];
+
+const WatchlistsView = ({ onNavigate, dataState }) => {
+  const [watchlists, setWatchlists] = useState(INITIAL_WATCHLISTS);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isAddOpen, setIsAddOpen] = useState(false);
+  const [toastMsg, setToastMsg] = useState('');
+
+  // Form State
+  const [newEmail, setNewEmail] = useState('');
+  const [newType, setNewType] = useState('Illicit Merchant');
+  const [newRisk, setNewRisk] = useState('Critical');
+
+  const filteredWatchlists = watchlists.filter(w =>
+    w.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    w.type.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const handleAddEntry = (e) => {
+    e.preventDefault();
+    if (!newEmail.trim()) return;
+
+    const entry = {
+      id: Date.now(),
+      email: newEmail.trim(),
+      type: newType,
+      addedBy: 'Leo.moncada (Lead Analyst)',
+      date: new Date().toISOString().slice(0, 10),
+      risk: newRisk
+    };
+
+    setWatchlists(prev => [entry, ...prev]);
+    setNewEmail('');
+    setIsAddOpen(false);
+    showToast(`Added ${entry.email} to active AML Watchlist`);
+  };
+
+  const handleDelete = (id, email) => {
+    setWatchlists(prev => prev.filter(w => w.id !== id));
+    showToast(`Removed ${email} from Watchlist`);
+  };
+
+  const showToast = (msg) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(''), 3500);
+  };
 
   return (
-    <div className="flex h-screen bg-[#0d0f14] text-gray-200 font-sans overflow-hidden">
-      
-      {/* GLOBAL LEFT NAVIGATION RAIL WITH LEON BRANDING */}
-      <nav className="w-20 bg-[#12141c] border-r border-gray-800/80 flex flex-col items-center py-4 shrink-0 z-30 shadow-2xl">
-        <button
-          onClick={() => onNavigate('home')}
-          className="w-12 h-12 bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-800 rounded-xl flex flex-col items-center justify-center text-white font-extrabold mb-8 shadow-lg shadow-indigo-900/50 hover:scale-105 transition-all cursor-pointer border border-indigo-400/30 group"
-          title="LEON - Fraud Prevention & AML Home"
-        >
-          <span className="text-[11px] tracking-tighter leading-none text-indigo-200 font-black group-hover:text-white">LEON</span>
-          <span className="text-[7px] tracking-widest text-indigo-300 uppercase font-mono mt-0.5">AML</span>
-        </button>
+    <div className="p-6 md:p-8 space-y-8 max-w-[1400px] mx-auto w-full font-sans transition-colors duration-200">
 
-        <div className="flex flex-col space-y-6 w-full items-center">
-          <button onClick={() => onNavigate('home')} className="flex justify-center w-full group relative text-gray-500 hover:text-indigo-400 transition-colors cursor-pointer">
-            <div className="p-2.5 rounded-xl hover:bg-gray-800"><Activity size={20} /></div>
-          </button>
-          <button onClick={() => onNavigate('explorer')} className="flex justify-center w-full group relative text-gray-500 hover:text-indigo-400 transition-colors cursor-pointer">
-            <div className="p-2.5 rounded-xl hover:bg-gray-800"><Network size={20} /></div>
-          </button>
-          <button onClick={() => onNavigate('rules')} className="flex justify-center w-full group relative text-gray-500 hover:text-indigo-400 transition-colors cursor-pointer">
-            <div className="p-2.5 rounded-xl hover:bg-gray-800"><Zap size={20} /></div>
-          </button>
-          <button onClick={() => onNavigate('reports')} className="flex justify-center w-full group relative text-gray-500 hover:text-indigo-400 transition-colors cursor-pointer">
-            <div className="p-2.5 rounded-xl hover:bg-gray-800"><FileBarChart size={20} /></div>
-          </button>
-          <button onClick={() => onNavigate('watchlists')} className="flex justify-center w-full group relative cursor-pointer">
-            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-indigo-500 rounded-r"></div>
-            <div className="p-2.5 rounded-xl bg-indigo-900/40 text-indigo-400 border border-indigo-700/50"><ListIcon size={20} /></div>
-          </button>
+      {/* HEADER */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <div className="flex items-center space-x-2.5">
+            <h1 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">Watchlists & Entity Blacklists</h1>
+            <Badge variant="critical" className="font-mono text-xs uppercase">FINTRAC Registry</Badge>
+          </div>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+            Maintain high-risk recipient emails, blacklisted merchant domains, and flagged Interac accounts.
+          </p>
         </div>
 
-        <div className="mt-auto mb-4">
-          <div className="w-9 h-9 rounded-full bg-indigo-950 border border-indigo-700 flex items-center justify-center text-xs font-bold text-indigo-300 shadow">LM</div>
-        </div>
-      </nav>
-
-      {/* MAIN CONTAINER */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto bg-[#0d0f14]">
-        <header className="bg-[#14171e] border-b border-gray-800 p-5 flex justify-between items-center shrink-0">
-          <div className="flex items-center space-x-3">
-            <div className="p-2.5 bg-purple-950 text-purple-400 border border-purple-800 rounded-xl">
-              <ListIcon size={22} />
+        <div className="flex items-center space-x-3">
+          {toastMsg && (
+            <div className="bg-emerald-50 dark:bg-emerald-950 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs px-3.5 py-1.5 rounded-xl flex items-center shadow-lg animate-in fade-in">
+              <CheckCircle size={14} className="mr-1.5 text-emerald-600 dark:text-emerald-400" />
+              {toastMsg}
             </div>
-            <div>
-              <h1 className="text-xl font-bold text-white">LEON • Watchlists & Sanctions</h1>
-              <p className="text-xs text-gray-400">High-Risk Recipient Email & Entity Blacklist Registry</p>
-            </div>
-          </div>
+          )}
 
-          <button onClick={() => alert('Add to Watchlist modal')} className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl transition-all cursor-pointer flex items-center shadow-lg shadow-indigo-600/30">
-            <Plus size={15} className="mr-1.5" /> Add New Watchlist Entry
-          </button>
-        </header>
-
-        <div className="p-6 max-w-[1400px] mx-auto w-full space-y-6">
-          <div className="bg-[#12141c] border border-gray-800 rounded-2xl p-5 shadow-2xl space-y-4">
-            <h2 className="text-base font-bold text-white">Flagged ETRANSFER Watchlist Entities</h2>
-            
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs whitespace-nowrap">
-                <thead className="bg-[#181b24] text-[10px] uppercase text-gray-400 border-b border-gray-800 font-bold">
-                  <tr>
-                    <th className="p-3.5">Identifier / Email</th>
-                    <th className="p-3.5">Watchlist Category</th>
-                    <th className="p-3.5">Added By</th>
-                    <th className="p-3.5">Date Added</th>
-                    <th className="p-3.5">Risk Level</th>
-                    <th className="p-3.5 text-center">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-800/50">
-                  {sampleWatchlists.map((w, idx) => (
-                    <tr key={idx} className="hover:bg-gray-800/40">
-                      <td className="p-3.5 font-mono text-white font-semibold">{w.email}</td>
-                      <td className="p-3.5 text-gray-300">{w.type}</td>
-                      <td className="p-3.5 text-gray-400">{w.addedBy}</td>
-                      <td className="p-3.5 font-mono text-gray-500">{w.date}</td>
-                      <td className="p-3.5">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${w.risk === 'Critical' ? 'bg-red-950 text-red-400 border-red-900' : 'bg-amber-950 text-amber-400 border-amber-900'}`}>
-                          {w.risk}
-                        </span>
-                      </td>
-                      <td className="p-3.5 text-center">
-                        <button onClick={() => alert('Entry removed')} className="p-1.5 text-gray-500 hover:text-red-400 transition-colors cursor-pointer">
-                          <Trash2 size={14} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <Button
+            variant="default"
+            size="sm"
+            onClick={() => setIsAddOpen(true)}
+            className="text-xs font-bold"
+          >
+            <Plus size={15} className="mr-1.5" />
+            Add Watchlist Entry
+          </Button>
         </div>
       </div>
+
+      {/* TABLE CARD */}
+      <Card className="shadow-sm dark:shadow-2xl">
+        <CardHeader className="p-5 pb-4 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+          <div>
+            <CardTitle className="text-base font-bold text-slate-900 dark:text-white flex items-center">
+              <ListIcon size={18} className="mr-2 text-sky-600 dark:text-sky-400" />
+              Flagged Watchlist Entities ({filteredWatchlists.length})
+            </CardTitle>
+            <CardDescription className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              Active triggers auto-tag any batch containing these identifiers with high risk.
+            </CardDescription>
+          </div>
+
+          <div className="relative w-full sm:w-64">
+            <Search size={13} className="absolute left-3 top-2.5 text-slate-400 dark:text-slate-500" />
+            <Input
+              type="text"
+              placeholder="Filter watchlist emails..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-8 h-8 text-xs"
+            />
+          </div>
+        </CardHeader>
+
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader className="bg-slate-50 dark:bg-slate-950/80">
+              <TableRow className="border-slate-200 dark:border-slate-800/80">
+                <TableHead>Identifier / Email</TableHead>
+                <TableHead>Watchlist Category</TableHead>
+                <TableHead>Added By</TableHead>
+                <TableHead>Date Added</TableHead>
+                <TableHead>Risk Severity</TableHead>
+                <TableHead className="text-center">Action</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredWatchlists.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="p-8 text-center text-slate-500 italic">
+                    No watchlist entries match the search filter.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredWatchlists.map((w) => (
+                  <TableRow key={w.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 border-slate-200 dark:border-slate-800/60">
+                    <TableCell className="font-mono text-slate-900 dark:text-white font-semibold py-3 text-xs">
+                      {w.email}
+                    </TableCell>
+                    <TableCell className="text-slate-800 dark:text-slate-300 py-3 text-xs font-medium">
+                      {w.type}
+                    </TableCell>
+                    <TableCell className="text-slate-600 dark:text-slate-400 py-3 text-xs font-medium">
+                      {w.addedBy}
+                    </TableCell>
+                    <TableCell className="font-mono text-slate-600 dark:text-slate-400 py-3 text-xs">
+                      {w.date}
+                    </TableCell>
+                    <TableCell className="py-3">
+                      <Badge
+                        variant={w.risk === 'Critical' ? 'critical' : 'elevated'}
+                        className="text-[10px] px-2 py-0.5"
+                      >
+                        {w.risk}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-center py-3">
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => handleDelete(w.id, w.email)}
+                        className="text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:text-slate-500 dark:hover:text-rose-400 dark:hover:bg-rose-950/40 h-7 w-7"
+                        title="Remove from watchlist"
+                      >
+                        <Trash2 size={14} />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {/* ADD ENTRY MODAL */}
+      <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold flex items-center">
+              <ShieldAlert size={18} className="mr-2 text-rose-600 dark:text-rose-400" />
+              Add Watchlist Entry
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Transactions containing this identifier will be automatically flagged as high risk across all ingested batches.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleAddEntry} className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                Email / Identifier / Handle
+              </label>
+              <Input
+                type="text"
+                placeholder="e.g. merchant@illicitshop.ca"
+                value={newEmail}
+                onChange={(e) => setNewEmail(e.target.value)}
+                required
+                className="text-xs"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                Watchlist Category
+              </label>
+              <select
+                value={newType}
+                onChange={(e) => setNewType(e.target.value)}
+                className="w-full bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-200 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-sky-500"
+              >
+                <option value="Illicit Merchant (Unlicensed Dispensary)">Illicit Merchant (Unlicensed Dispensary)</option>
+                <option value="Crypto Mixer / Wash Account">Crypto Mixer / Wash Account</option>
+                <option value="High Velocity Mule Account">High Velocity Mule Account</option>
+                <option value="Sanctioned Entity">Sanctioned Entity</option>
+                <option value="Internal Fraud Watch">Internal Fraud Watch</option>
+              </select>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                Risk Severity
+              </label>
+              <div className="flex gap-3">
+                <label className="flex items-center space-x-2 text-xs text-slate-700 dark:text-slate-300 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="risk"
+                    value="Critical"
+                    checked={newRisk === 'Critical'}
+                    onChange={() => setNewRisk('Critical')}
+                    className="accent-rose-500"
+                  />
+                  <span>Critical (Auto Block)</span>
+                </label>
+                <label className="flex items-center space-x-2 text-xs text-slate-700 dark:text-slate-300 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="risk"
+                    value="Elevated"
+                    checked={newRisk === 'Elevated'}
+                    onChange={() => setNewRisk('Elevated')}
+                    className="accent-amber-500"
+                  />
+                  <span>Elevated (Flag for Review)</span>
+                </label>
+              </div>
+            </div>
+
+            <DialogFooter className="pt-3">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setIsAddOpen(false)}
+                className="text-xs"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                variant="default"
+                size="sm"
+                className="text-xs font-bold"
+              >
+                Add to Watchlist
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 };

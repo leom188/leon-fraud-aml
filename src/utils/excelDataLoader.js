@@ -137,7 +137,8 @@ export function generateSampleEtransferData(recordCount = 250) {
       TRX_FREE_FLAG_3: isIncoming ? '1' : '0',
       TRX_MSG_TYPE: 'COMPLETED',
       TRX_TRAN_CDE: isIncoming ? '4' : '9',
-      ALERT_CLOSE_TYPE: isSuspicious ? '' : '109',
+      TRX_ALERT_TYPE: (i % 8 === 0) ? '110' : '',
+      ALERT_CLOSE_TYPE: (i % 8 === 0) ? '110' : '',
       TRX_ANALYSED_BY: 'Leo.moncada'
     });
   }
