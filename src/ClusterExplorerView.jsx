@@ -716,8 +716,11 @@ const ClusterExplorerView = ({
                               onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                if (onSelectEntityGroup) onSelectEntityGroup(group.id);
-                                if (onNavigate) onNavigate('dashboard');
+                                if (onSelectEntityGroup) {
+                                  onSelectEntityGroup(group.id);
+                                } else if (onNavigate) {
+                                  onNavigate('dashboard');
+                                }
                               }}
                               className="text-left group/btn cursor-pointer block focus:outline-none"
                               title="Click to open Full Triage Deck"
@@ -828,8 +831,11 @@ const ClusterExplorerView = ({
                                 onClick={(e) => {
                                   e.preventDefault();
                                   e.stopPropagation();
-                                  if (onSelectEntityGroup) onSelectEntityGroup(group.id);
-                                  if (onNavigate) onNavigate('dashboard');
+                                  if (onSelectEntityGroup) {
+                                    onSelectEntityGroup(group.id);
+                                  } else if (onNavigate) {
+                                    onNavigate('dashboard');
+                                  }
                                 }}
                                 className="h-7 w-7 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer shadow-xs"
                                 title="Launch Full Triage Deck"
@@ -862,8 +868,11 @@ const ClusterExplorerView = ({
                       key={group.id}
                       className="bg-white dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 hover:border-sky-500/50 transition-all p-5 flex flex-col justify-between shadow-sm dark:shadow-xl cursor-pointer"
                       onClick={() => {
-                        if (onSelectEntityGroup) onSelectEntityGroup(group.id);
-                        if (onNavigate) onNavigate('dashboard');
+                        if (onSelectEntityGroup) {
+                          onSelectEntityGroup(group.id);
+                        } else if (onNavigate) {
+                          onNavigate('dashboard');
+                        }
                       }}
                     >
                       <div className="space-y-3">
@@ -915,8 +924,11 @@ const ClusterExplorerView = ({
                           size="sm"
                           onClick={(e) => {
                             e.stopPropagation();
-                            if (onSelectEntityGroup) onSelectEntityGroup(group.id);
-                            if (onNavigate) onNavigate('dashboard');
+                            if (onSelectEntityGroup) {
+                              onSelectEntityGroup(group.id);
+                            } else if (onNavigate) {
+                              onNavigate('dashboard');
+                            }
                           }}
                           className="text-xs text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-white h-7 px-2"
                         >
@@ -1120,8 +1132,11 @@ const ClusterExplorerView = ({
               variant="default"
               size="sm"
               onClick={() => {
-                if (onSelectEntityGroup) onSelectEntityGroup(quickPeekCluster.id);
-                if (onNavigate) onNavigate('dashboard');
+                if (onSelectEntityGroup) {
+                  onSelectEntityGroup(quickPeekCluster.id);
+                } else if (onNavigate) {
+                  onNavigate('dashboard');
+                }
               }}
               className="flex-1 text-xs font-bold"
             >

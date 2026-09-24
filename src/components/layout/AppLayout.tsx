@@ -1,4 +1,5 @@
 import React from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Activity,
   Network,
@@ -14,72 +15,122 @@ import {
   FileSpreadsheet,
   Sliders,
   Sun,
-  Moon
+  Moon,
+  CreditCard,
+  Layers
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import { useTheme } from '../../utils/useTheme';
+import { useTriageStore } from '../../store/useTriageStore';
+import { PaymentRail } from '../../types/rails';
 
-export const AppLayout = ({
-  currentView,
-  onNavigate,
-  dataState,
-  onLoadSampleData,
+interface AppLayoutProps {
+  currentView?: string;
+  onNavigate?: (view: string) => void;
+  children?: React.ReactNode;
+}
+
+export const AppLayout: React.FC<AppLayoutProps> = ({
+  currentView: propView,
+  onNavigate: propNavigate,
   children
 }) => {
   const { effectiveTheme, toggleTheme } = useTheme();
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  // Zustand Store
+  const {
+    dataState,
+    activeRail,
+    setActiveRail,
+    currentUser,
+    loadSampleDataForRail
+  } = useTriageStore();
+
   const groups = dataState?.groupedEntities || [];
   const totalVolume = groups.reduce((acc, g) => acc + (g.total_amount || 0), 0);
   const totalTxns = dataState?.totalRecords || groups.reduce((acc, g) => acc + (g.transaction_count || 0), 0);
   const criticalCount = groups.filter(g => g.risk_level === 'Critical').length;
-  const elevatedCount = groups.filter(g => g.risk_level === 'Elevated').length;
+
+  // Determine active view from URL or prop
+  const currentPath = location.pathname;
+  const isViewActive = (path: string, viewKey: string): boolean => {
+    if (propView) return propView === viewKey;
+    if (path === '/' && viewKey === 'home') return true;
+    return path.startsWith(`/${viewKey}`);
+  };
+
+  const handleNav = (path: string, viewKey: string) => {
+    if (propNavigate) propNavigate(viewKey);
+    navigate(path);
+  };
 
   const navItems = [
     {
       id: 'home',
+      path: '/',
       label: 'Executive Command Center',
       icon: Activity,
       badge: null,
+      badgeVariant: undefined
     },
     {
       id: 'explorer',
+      path: '/explorer',
       label: 'Cluster & Entity Explorer',
       icon: Network,
       badge: groups.length > 0 ? groups.length : null,
+      badgeVariant: undefined
     },
     {
-      id: 'dashboard',
+      id: 'triage',
+      path: '/triage',
       label: 'Entity Triage & Investigation',
       icon: AlertTriangle,
       badge: criticalCount > 0 ? criticalCount : null,
-      badgeVariant: 'critical',
+      badgeVariant: 'critical' as const,
     },
     {
       id: 'rules',
+      path: '/rules',
       label: 'Rule Engine & Automation',
       icon: Zap,
       badge: null,
+      badgeVariant: undefined
     },
     {
       id: 'reports',
+      path: '/reports',
       label: 'Reports & STR Filings',
       icon: FileBarChart,
       badge: null,
+      badgeVariant: undefined
     },
     {
       id: 'watchlists',
+      path: '/watchlists',
       label: 'Watchlists & Blacklists',
       icon: ListIcon,
       badge: null,
+      badgeVariant: undefined
     },
     {
       id: 'settings',
+      path: '/settings',
       label: 'Field Mapping & Configuration',
       icon: Sliders,
       badge: null,
+      badgeVariant: undefined
     },
   ];
+
+  const handleRailSwitch = (newRail: PaymentRail) => {
+    setActiveRail(newRail);
+    loadSampleDataForRail(newRail, 200);
+  };
 
   return (
     <TooltipProvider delayDuration={150}>
@@ -92,7 +143,7 @@ export const AppLayout = ({
           
           {/* BRAND ICON / LOGO */}
           <button
-            onClick={() => onNavigate('home')}
+            onClick={() => handleNav('/', 'home')}
             className="w-12 h-12 bg-gradient-to-br from-sky-500 via-indigo-600 to-indigo-800 rounded-2xl flex flex-col items-center justify-center text-white font-extrabold mb-7 shadow-lg shadow-sky-500/20 hover:scale-105 transition-all cursor-pointer border border-sky-400/30 group"
             title="LEON - Command Center Home"
           >
@@ -108,13 +159,13 @@ export const AppLayout = ({
           <div className="flex flex-col space-y-4 w-full items-center">
             {navItems.map((item) => {
               const Icon = item.icon;
-              const isActive = currentView === item.id || (item.id === 'dashboard' && currentView === 'investigation');
+              const isActive = isViewActive(currentPath, item.id);
 
               return (
                 <Tooltip key={item.id}>
                   <TooltipTrigger asChild>
                     <button
-                      onClick={() => onNavigate(item.id)}
+                      onClick={() => handleNav(item.path, item.id)}
                       className={`flex justify-center w-full group relative cursor-pointer py-1 ${
                         isActive
                           ? 'text-sky-600 dark:text-sky-400'
@@ -180,9 +231,17 @@ export const AppLayout = ({
 
             <div className="w-2 h-2 rounded-full bg-emerald-500 ring-4 ring-emerald-500/20" title="System Live & Operational" />
             
-            <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700/80 flex items-center justify-center text-xs font-bold text-sky-700 dark:text-sky-300 shadow">
-              LM
-            </div>
+            {/* Analyst Avatar with Tooltip */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800/90 border border-slate-300 dark:border-slate-700/80 flex items-center justify-center text-xs font-bold text-sky-700 dark:text-sky-300 shadow cursor-default">
+                  {currentUser.initials}
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="right" className="font-semibold text-xs">
+                {currentUser.name} ({currentUser.role})
+              </TooltipContent>
+            </Tooltip>
           </div>
         </aside>
 
@@ -198,18 +257,39 @@ export const AppLayout = ({
                 <span className="font-extrabold text-slate-900 dark:text-white text-sm tracking-tight">LEON</span>
                 <span className="text-slate-400 dark:text-slate-600">/</span>
                 <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
-                  {currentView === 'home' && 'Executive Command Center'}
-                  {currentView === 'explorer' && 'Cluster & Entity Explorer'}
-                  {(currentView === 'dashboard' || currentView === 'investigation') && 'Entity Triage & Investigation'}
-                  {currentView === 'rules' && 'Rule Management Engine'}
-                  {currentView === 'reports' && 'Reports & Compliance Hub'}
-                  {currentView === 'watchlists' && 'Watchlists & Entity Registry'}
-                  {currentView === 'settings' && 'Field Mapping & Configuration'}
+                  {currentPath === '/' && 'Executive Command Center'}
+                  {currentPath.startsWith('/explorer') && 'Cluster & Entity Explorer'}
+                  {currentPath.startsWith('/triage') && 'Entity Triage & Investigation'}
+                  {currentPath.startsWith('/rules') && 'Rule Management Engine'}
+                  {currentPath.startsWith('/reports') && 'Reports & Compliance Hub'}
+                  {currentPath.startsWith('/watchlists') && 'Watchlists & Entity Registry'}
+                  {currentPath.startsWith('/settings') && 'Field Mapping & Configuration'}
                 </span>
               </div>
-              <Badge variant="cyan" className="hidden sm:inline-flex text-[10px] uppercase font-mono">
-                Interac Rails
-              </Badge>
+
+              {/* Dynamic Payment Rail Selector */}
+              <div className="flex items-center bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-0.5 text-xs font-mono">
+                <button
+                  onClick={() => handleRailSwitch('ETRANSFER')}
+                  className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase transition-all cursor-pointer ${
+                    activeRail === 'ETRANSFER'
+                      ? 'bg-sky-500 text-white shadow-xs'
+                      : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
+                  }`}
+                >
+                  Interac e-Transfer
+                </button>
+                <button
+                  onClick={() => handleRailSwitch('CARD')}
+                  className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase transition-all cursor-pointer ${
+                    activeRail === 'CARD'
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-200'
+                  }`}
+                >
+                  Card Rail
+                </button>
+              </div>
             </div>
 
             {/* TELEMETRY & QUICK ACTIONS */}
@@ -247,11 +327,11 @@ export const AppLayout = ({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={onLoadSampleData}
-                className="text-xs font-semibold text-sky-600 dark:text-sky-400 border-sky-300 dark:border-sky-500/30 hover:bg-sky-50 dark:hover:bg-sky-500/10 hover:border-sky-400"
+                onClick={() => loadSampleDataForRail(activeRail, 250)}
+                className="text-xs font-semibold text-sky-600 dark:text-sky-400 border-sky-300 dark:border-sky-500/30 hover:bg-sky-50 dark:hover:bg-sky-500/10 hover:border-sky-400 cursor-pointer"
               >
                 <Sparkles size={13} className="mr-1.5 text-sky-600 dark:text-sky-400" />
-                {groups.length > 0 ? 'Reload Sample' : 'Load Demo Cluster'}
+                {groups.length > 0 ? 'Reload Sample' : 'Load Demo Batch'}
               </Button>
             </div>
           </header>

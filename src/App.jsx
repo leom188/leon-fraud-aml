@@ -1,15 +1,15 @@
-import React, { useState, useEffect, Component } from 'react';
+import React, { useEffect, Component } from 'react';
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { ThemeProvider } from './utils/useTheme';
 import AppLayout from './components/layout/AppLayout';
 import EtransferHomeView from './EtransferHomeView';
 import ClusterExplorerView from './ClusterExplorerView';
-import FraudTriageDashboard from './FraudTriageDashboard';
+import { TriageView } from './views/triage/TriageView';
 import RuleEngineView from './RuleEngineView';
 import ReportsView from './ReportsView';
 import WatchlistsView from './WatchlistsView';
 import SettingsView from './SettingsView';
-import { generateSampleEtransferData } from './utils/excelDataLoader';
-import { loadColumnMappings, saveColumnMappings, resetColumnMappings } from './utils/columnMapping';
+import { useTriageStore } from './store/useTriageStore';
 
 class ErrorBoundary extends Component {
   constructor(props) {
@@ -63,115 +63,132 @@ class ErrorBoundary extends Component {
 }
 
 function App() {
-  const [currentView, setCurrentView] = useState('home');
-  const [dataState, setDataState] = useState(null);
-  const [selectedGroupId, setSelectedGroupId] = useState(null);
-  const [columnMappings, setColumnMappings] = useState(() => loadColumnMappings());
+  const navigate = useNavigate();
+
+  // Zustand Store
+  const {
+    dataState,
+    setDataState,
+    columnMappings,
+    updateColumnMappings,
+    resetColumnMappings,
+    loadSampleDataForRail,
+    activeRail
+  } = useTriageStore();
 
   // Auto-load sample dataset on initial load for instant interactive demo experience
   useEffect(() => {
     if (!dataState) {
-      const sample = generateSampleEtransferData(300);
-      setDataState(sample);
+      loadSampleDataForRail(activeRail, 250);
     }
   }, []);
 
-  const handleLoadSampleData = () => {
-    const sample = generateSampleEtransferData(300);
-    setDataState(sample);
-  };
-
-  const handleUpdateColumnMappings = (newMappings) => {
-    setColumnMappings(newMappings);
-    saveColumnMappings(newMappings);
-  };
-
-  const handleResetColumnMappings = () => {
-    const defaults = resetColumnMappings();
-    setColumnMappings(defaults);
+  const handleLegacyNavigate = (viewKey) => {
+    const routeMap = {
+      home: '/',
+      explorer: '/explorer',
+      dashboard: '/triage',
+      investigation: '/triage',
+      rules: '/rules',
+      reports: '/reports',
+      watchlists: '/watchlists',
+      settings: '/settings'
+    };
+    navigate(routeMap[viewKey] || '/');
   };
 
   return (
     <ThemeProvider>
       <ErrorBoundary>
-        <AppLayout
-          currentView={currentView}
-          onNavigate={setCurrentView}
-          dataState={dataState}
-          onLoadSampleData={handleLoadSampleData}
-        >
-          {/* 1. LEON EXECUTIVE COMMAND CENTER HOME */}
-          {currentView === 'home' && (
-            <EtransferHomeView
-              dataState={dataState}
-              onNavigate={setCurrentView}
-              onDataIngested={setDataState}
-              onLoadSampleData={handleLoadSampleData}
-              columnMappings={columnMappings}
+        <AppLayout>
+          <Routes>
+            {/* 1. LEON EXECUTIVE COMMAND CENTER HOME */}
+            <Route
+              path="/"
+              element={
+                <EtransferHomeView
+                  dataState={dataState}
+                  onNavigate={handleLegacyNavigate}
+                  onDataIngested={setDataState}
+                  onLoadSampleData={() => loadSampleDataForRail(activeRail, 250)}
+                  columnMappings={columnMappings}
+                />
+              }
             />
-          )}
 
-          {/* 2. CLUSTER & ENTITY EXPLORER */}
-          {currentView === 'explorer' && (
-            <ClusterExplorerView
-              dataState={dataState}
-              onNavigate={setCurrentView}
-              onSelectEntityGroup={(groupId) => {
-                setSelectedGroupId(groupId);
-                setCurrentView('dashboard');
-              }}
-              onOpenUploadModal={() => setCurrentView('home')}
-              columnMappings={columnMappings}
+            {/* 2. CLUSTER & ENTITY EXPLORER */}
+            <Route
+              path="/explorer"
+              element={
+                <ClusterExplorerView
+                  dataState={dataState}
+                  onNavigate={handleLegacyNavigate}
+                  onSelectEntityGroup={(groupId) => {
+                    useTriageStore.getState().setSelectedGroupId(groupId);
+                    navigate(`/triage/${groupId}`);
+                  }}
+                  onOpenUploadModal={() => navigate('/')}
+                  columnMappings={columnMappings}
+                />
+              }
             />
-          )}
 
-          {/* 3. ENTITY TRIAGE & INVESTIGATION VIEW */}
-          {(currentView === 'dashboard' || currentView === 'investigation') && (
-            <FraudTriageDashboard
-              onNavigate={setCurrentView}
-              externalDataState={dataState}
-              setExternalDataState={setDataState}
-              externalSelectedGroupId={selectedGroupId}
-              setExternalSelectedGroupId={setSelectedGroupId}
-              columnMappings={columnMappings}
-            />
-          )}
+            {/* 3. ENTITY TRIAGE & INVESTIGATION VIEW (Supports deep link to cluster!) */}
+            <Route path="/triage/:groupId?" element={<TriageView />} />
+            <Route path="/dashboard" element={<Navigate to="/triage" replace />} />
+            <Route path="/investigation" element={<Navigate to="/triage" replace />} />
 
-          {/* 4. RULE ENGINE & MANAGEMENT */}
-          {currentView === 'rules' && (
-            <RuleEngineView
-              onNavigate={setCurrentView}
-              dataState={dataState}
-              columnMappings={columnMappings}
+            {/* 4. RULE ENGINE & MANAGEMENT */}
+            <Route
+              path="/rules"
+              element={
+                <RuleEngineView
+                  onNavigate={handleLegacyNavigate}
+                  dataState={dataState}
+                  columnMappings={columnMappings}
+                />
+              }
             />
-          )}
 
-          {/* 5. REPORTS & ANALYTICS */}
-          {currentView === 'reports' && (
-            <ReportsView
-              onNavigate={setCurrentView}
-              dataState={dataState}
-              columnMappings={columnMappings}
+            {/* 5. REPORTS & ANALYTICS */}
+            <Route
+              path="/reports"
+              element={
+                <ReportsView
+                  onNavigate={handleLegacyNavigate}
+                  dataState={dataState}
+                  columnMappings={columnMappings}
+                />
+              }
             />
-          )}
 
-          {/* 6. WATCHLISTS & SANCTIONS */}
-          {currentView === 'watchlists' && (
-            <WatchlistsView
-              onNavigate={setCurrentView}
-              dataState={dataState}
-              columnMappings={columnMappings}
+            {/* 6. WATCHLISTS & SANCTIONS */}
+            <Route
+              path="/watchlists"
+              element={
+                <WatchlistsView
+                  onNavigate={handleLegacyNavigate}
+                  dataState={dataState}
+                  columnMappings={columnMappings}
+                />
+              }
             />
-          )}
 
-          {/* 7. SETTINGS & FIELD MAPPING */}
-          {currentView === 'settings' && (
-            <SettingsView
-              columnMappings={columnMappings}
-              onUpdateColumnMappings={handleUpdateColumnMappings}
-              onResetColumnMappings={handleResetColumnMappings}
+            {/* 7. SETTINGS & FIELD MAPPING */}
+            <Route
+              path="/settings"
+              element={
+                <SettingsView
+                  columnMappings={columnMappings}
+                  onUpdateColumnMappings={updateColumnMappings}
+                  onResetColumnMappings={resetColumnMappings}
+                />
+              }
             />
-          )}
+
+            {/* Fallback */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
         </AppLayout>
       </ErrorBoundary>
     </ThemeProvider>
