@@ -53,6 +53,8 @@ import { Badge } from './components/ui/badge';
 import { Button } from './components/ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from './components/ui/card';
 import { Input } from './components/ui/input';
+import { StatTile } from './components/ui/stat-tile';
+import { toggleGroup, toggleButton } from './components/charts/chartTheme';
 
 const TACTICAL_PRESETS = [
   { id: 'ALL', label: 'All Clusters', icon: Layers },
@@ -118,7 +120,7 @@ const ClusterExplorerView = ({
   const [selectedClusterIds, setSelectedClusterIds] = useState(new Set());
   const [batchToast, setBatchToast] = useState('');
 
-  // Sorting & Pagination States (Default: Risk Level & Rules highest to lowest)
+  // Sorting & Pagination States (Default: risk score highest to lowest)
   const [sortField, setSortField] = useState('risk_score'); 
   const [sortOrder, setSortOrder] = useState('desc');
   const [currentPage, setCurrentPage] = useState(1);
@@ -350,26 +352,74 @@ const ClusterExplorerView = ({
     const targets = groups.filter(g => selectedClusterIds.has(g.id));
     if (targets.length === 0) return;
 
-    const exportRows = targets.map(g => ({
-      'Entity Key': g.grouping_key,
-      'Field': g.grouping_key_source,
-      'Client Name': g.client_name,
-      'Client ID': g.client_id,
-      'Corporation': g.corporation_code || 'N/A',
-      'Tx Count': g.transaction_count,
-      'Total Amount': g.total_amount,
-      'Risk Score': g.risk_score,
-      'Risk Level': g.risk_level,
-      'Triggered Rules': (g.rule_names || []).join(', ')
-    }));
+    try {
+      const exportRows = targets.map(g => ({
+        'Entity ID': g.id,
+        'Entity Key': g.grouping_key,
+        'Grouping Field': getGroupingKeySourceLabel(g.grouping_key_source),
+        'Client Name': g.client_name,
+        'Client ID': g.client_id,
+        'Corporation': g.corporation_code || 'N/A',
+        'Direction': g.transaction_direction,
+        'Transaction Count': g.transaction_count,
+        'Total Amount (CAD)': g.total_amount,
+        'Risk Score': g.risk_score,
+        'Risk Level': g.risk_level,
+        'Triggered Rules': (g.rule_names || []).join(', ')
+      }));
 
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.json_to_sheet(exportRows);
-    XLSX.utils.book_append_sheet(wb, ws, 'Selected_Clusters');
-    XLSX.writeFile(wb, `LEON_Selected_Clusters_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      const wb = XLSX.utils.book_new();
 
-    setBatchToast(`Exported ${targets.length} selected clusters to Excel`);
-    setTimeout(() => setBatchToast(''), 3500);
+      // Sheet 1: Selected Clusters Summary
+      const wsClusters = XLSX.utils.json_to_sheet(exportRows);
+      XLSX.utils.book_append_sheet(wb, wsClusters, 'Selected_Clusters');
+
+      // Sheet 2: All transactions belonging to selected clusters
+      const allClusterTxns = targets.flatMap(g =>
+        (g.transactions || []).map(tx => ({
+          'Cluster ID': g.id,
+          'Entity Key': g.grouping_key,
+          'Reference ID': tx.reference_number || tx.id || '',
+          'Client Name': tx.client_name || g.client_name || '',
+          'Corporation': tx.corporation_code || g.corporation_code || '',
+          'Direction': tx.transaction_direction || g.transaction_direction || '',
+          'Amount (CAD)': tx.amount,
+          'Date': tx.transaction_date || '',
+          'Sender Name': tx.sender_name || '',
+          'Sender Email': tx.sender_email || '',
+          'Recipient Name': tx.recipient_name || '',
+          'Recipient Email': tx.recipient_email || '',
+          'Memo': tx.memo || '',
+          'Triggered Rules': (tx.rule_names || []).join(', '),
+          'Status': tx.alert_close_type || (tx.is_alert_open ? 'Open Alert' : 'Compliant')
+        }))
+      );
+
+      if (allClusterTxns.length > 0) {
+        const wsTxns = XLSX.utils.json_to_sheet(allClusterTxns);
+        XLSX.utils.book_append_sheet(wb, wsTxns, 'Cluster_Transactions');
+      }
+
+      // Convert to binary array and trigger native browser download
+      const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `LEON_Selected_Clusters_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      }, 100);
+
+      setBatchToast(`Exported ${targets.length} selected cluster(s) with ${allClusterTxns.length} transactions to Excel`);
+      setTimeout(() => setBatchToast(''), 4000);
+    } catch (err) {
+      console.error('Failed to export Excel file:', err);
+      alert('Failed to generate Excel export: ' + (err.message || String(err)));
+    }
   };
 
   // Summary Metrics
@@ -378,7 +428,7 @@ const ClusterExplorerView = ({
   const criticalCount = filteredGroups.filter(g => g.risk_level === 'Critical').length;
 
   return (
-    <div className="flex h-full overflow-hidden bg-slate-50 dark:bg-[#0B0E14] relative transition-colors duration-200">
+    <div className="flex h-full overflow-hidden bg-background relative transition-colors duration-200">
       
       {/* MAIN EXPLORER COLUMN */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
@@ -403,11 +453,11 @@ const ClusterExplorerView = ({
                     onClick={() => handleSelectPreset(preset.id)}
                     className={`inline-flex items-center px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
                       isActive
-                        ? 'bg-sky-50 dark:bg-sky-500/20 text-sky-700 dark:text-sky-300 border border-sky-300 dark:border-sky-500/40 shadow-xs dark:shadow-sky-500/10'
-                        : 'bg-slate-100 dark:bg-slate-950/80 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-850'
+                        ? 'bg-accent text-accent-foreground border border-primary/30'
+                        : 'bg-muted text-muted-foreground border border-transparent hover:text-foreground hover:bg-muted/70'
                     }`}
                   >
-                    <Icon size={13} className="mr-1.5 text-sky-600 dark:text-sky-400 shrink-0" />
+                    <Icon size={13} className="mr-1.5 shrink-0" />
                     <span>{preset.label}</span>
                   </button>
                 );
@@ -415,52 +465,53 @@ const ClusterExplorerView = ({
             </div>
 
             {/* View Mode Toggle */}
-            <div className="flex items-center space-x-1 bg-slate-100 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 rounded-xl p-0.5">
+            <div className={toggleGroup}>
               <button
                 onClick={() => setViewMode('table')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-medium flex items-center transition-all cursor-pointer ${
-                  viewMode === 'table' ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
+                className={toggleButton(viewMode === 'table')}
                 title="Forensic Data Grid"
               >
-                <List size={13} className="mr-1" /> Table
+                <List size={13} /> Table
               </button>
               <button
                 onClick={() => setViewMode('cards')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-medium flex items-center transition-all cursor-pointer ${
-                  viewMode === 'cards' ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-xs' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                }`}
+                className={toggleButton(viewMode === 'cards')}
                 title="Entity Network Cards"
               >
-                <LayoutGrid size={13} className="mr-1" /> Cards
+                <LayoutGrid size={13} /> Cards
               </button>
             </div>
           </div>
 
           {/* KPI Counters */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div className="bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800/80 p-3 rounded-xl">
-              <span className="text-slate-500 dark:text-slate-400 text-[10px] uppercase font-bold tracking-wider block">Filtered Entities</span>
-              <span className="text-slate-900 dark:text-white font-mono font-bold text-base">
-                {filteredGroups.length} <span className="text-xs font-normal text-slate-400 dark:text-slate-500">/ {groups.length}</span>
-              </span>
-            </div>
-            <div className="bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800/80 p-3 rounded-xl">
-              <span className="text-slate-500 dark:text-slate-400 text-[10px] uppercase font-bold tracking-wider block">Filtered Volume</span>
-              <span className="text-emerald-600 dark:text-emerald-400 font-mono font-bold text-base">
-                ${filteredVolume.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </span>
-            </div>
-            <div className="bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800/80 p-3 rounded-xl">
-              <span className="text-slate-500 dark:text-slate-400 text-[10px] uppercase font-bold tracking-wider block">Total Transactions</span>
-              <span className="text-sky-600 dark:text-sky-300 font-mono font-bold text-base">{filteredTxCount.toLocaleString()} txns</span>
-            </div>
-            <div className="bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800/80 p-3 rounded-xl">
-              <span className="text-slate-500 dark:text-slate-400 text-[10px] uppercase font-bold tracking-wider block">Critical Risk Groups</span>
-              <span className="text-rose-600 dark:text-rose-400 font-mono font-bold text-base flex items-center">
-                <span className="w-2 h-2 rounded-full bg-rose-500 mr-2 animate-pulse" /> {criticalCount} Entities
-              </span>
-            </div>
+            <StatTile
+              label="Filtered entities"
+              value={
+                <>
+                  {filteredGroups.length}{' '}
+                  <span className="text-xs font-normal text-muted-foreground">/ {groups.length}</span>
+                </>
+              }
+            />
+            <StatTile
+              label="Filtered volume"
+              value={`$${filteredVolume.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+            />
+            <StatTile
+              label="Total transactions"
+              value={
+                <>
+                  {filteredTxCount.toLocaleString()}{' '}
+                  <span className="text-xs font-normal text-muted-foreground">txns</span>
+                </>
+              }
+            />
+            <StatTile
+              label="Critical risk groups"
+              tone="risk"
+              value={`${criticalCount} entities`}
+            />
           </div>
 
           {/* Filter Matrix Toolbar Controls */}
@@ -653,7 +704,7 @@ const ClusterExplorerView = ({
                       {getColLabel('TRX_AMT1', 'Total Amount')} <ArrowUpDown size={10} className="inline ml-1 text-slate-400 dark:text-slate-500" />
                     </TableHead>
                     <TableHead className="cursor-pointer hover:text-slate-900 dark:hover:text-white" onClick={() => handleSort('risk_score')}>
-                      {getColLabel('RULE_NAMES', 'Risk Level & Rules')} <ArrowUpDown size={10} className="inline ml-1 text-slate-400 dark:text-slate-500" />
+                      {getColLabel('RULE_NAMES', 'Rule Name')} <ArrowUpDown size={10} className="inline ml-1 text-slate-400 dark:text-slate-500" />
                     </TableHead>
                     <TableHead className="text-center">Actions</TableHead>
                   </TableRow>
@@ -677,15 +728,6 @@ const ClusterExplorerView = ({
 
                       const corpDisplay = group.corporation_code || (group.transactions && group.transactions[0]?.corporation_code) || 'Unspecified Corporation';
                       const avgAmount = group.transaction_count > 0 ? group.total_amount / group.transaction_count : 0;
-
-                      // Extract specific matched keywords
-                      const matchedKeywords = Array.from(new Set(
-                        (group.transactions || []).flatMap(tx => {
-                          const m = (tx.memo || '') + ' ' + (tx.recipient_name || '') + ' ' + (tx.recipient_email || '');
-                          const matches = m.match(/\b(weed|canna|dispensary|crypto|vape|cbd)\b/gi) || [];
-                          return matches.map(k => k.toLowerCase());
-                        })
-                      ));
 
                       return (
                         <TableRow
@@ -772,36 +814,15 @@ const ClusterExplorerView = ({
                             ${group.total_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                           </TableCell>
 
-                          {/* Risk Level & Keyword Badges */}
+                          {/* Triggered Rules (from source file only) */}
                           <TableCell className="py-3">
-                            <div className="space-y-1">
-                              <div className="flex items-center space-x-2">
-                                <Badge variant={riskVariant} className="text-[9px] px-2 py-0.5">
-                                  {group.risk_level}
-                                </Badge>
-                                <span className="text-[10px] text-slate-600 dark:text-slate-400 font-mono font-semibold">
-                                  {group.risk_score}
-                                </span>
+                            {Array.isArray(group.rule_names) && group.rule_names.length > 0 ? (
+                              <div className="text-[10px] text-rose-700 dark:text-rose-400 font-medium truncate max-w-[180px] font-mono">
+                                ⚠️ {group.rule_names.join(', ')}
                               </div>
-
-                              {/* Keyword Pills Preview */}
-                              {matchedKeywords.length > 0 ? (
-                                <div className="flex flex-wrap gap-1 pt-0.5">
-                                  {matchedKeywords.map(kw => (
-                                    <span
-                                      key={kw}
-                                      className="px-1.5 py-0.2 bg-rose-100 dark:bg-rose-950/80 border border-rose-300 dark:border-rose-800/80 text-rose-800 dark:text-rose-300 rounded text-[9px] font-mono font-bold shadow-xs"
-                                    >
-                                      "{kw}"
-                                    </span>
-                                  ))}
-                                </div>
-                              ) : Array.isArray(group.rule_names) && group.rule_names.length > 0 ? (
-                                <div className="text-[10px] text-rose-700 dark:text-rose-400 font-medium truncate max-w-[180px] font-mono">
-                                  ⚠️ {group.rule_names.join(', ')}
-                                </div>
-                              ) : null}
-                            </div>
+                            ) : (
+                              <span className="text-[11px] text-slate-400 font-mono">—</span>
+                            )}
                           </TableCell>
 
                           {/* Actions: Quick View (Eye) + Full Triage Deck (ChevronRight) */}
@@ -877,9 +898,26 @@ const ClusterExplorerView = ({
                     >
                       <div className="space-y-3">
                         <div className="flex justify-between items-start">
-                          <Badge variant={riskVariant} className="text-[10px]">
-                            {group.risk_level} (Score: {group.risk_score})
-                          </Badge>
+                          <div className="flex items-center space-x-2">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleSelectCluster(group.id);
+                              }}
+                              className="cursor-pointer text-slate-400 hover:text-slate-700 dark:hover:text-white"
+                              title={selectedClusterIds.has(group.id) ? 'Deselect cluster' : 'Select cluster'}
+                            >
+                              {selectedClusterIds.has(group.id) ? (
+                                <CheckSquare size={16} className="text-sky-600 dark:text-sky-400" />
+                              ) : (
+                                <Square size={16} className="text-slate-400 dark:text-slate-600" />
+                              )}
+                            </button>
+                            <span className="font-mono font-bold text-xs text-slate-600 dark:text-slate-400">
+                              ID: {group.id}
+                            </span>
+                          </div>
                           <Badge variant="outline" className="font-mono text-[9px]">
                             {group.transaction_direction}
                           </Badge>
@@ -1003,12 +1041,9 @@ const ClusterExplorerView = ({
           <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex justify-between items-start bg-slate-50 dark:bg-slate-900/60">
             <div className="space-y-1">
               <div className="flex items-center space-x-2">
-                <Badge
-                  variant={quickPeekCluster.risk_level === 'Critical' ? 'critical' : 'elevated'}
-                  className="text-[10px]"
-                >
-                  {quickPeekCluster.risk_level} • Score {quickPeekCluster.risk_score}
-                </Badge>
+                <span className="font-mono text-xs font-bold text-slate-600 dark:text-slate-400">
+                  ID: {quickPeekCluster.id}
+                </span>
                 <Badge variant="cyan" className="font-mono text-[9px]">
                   {quickPeekCluster.transaction_direction}
                 </Badge>
@@ -1034,18 +1069,16 @@ const ClusterExplorerView = ({
             
             {/* Quick Metrics Grid */}
             <div className="grid grid-cols-2 gap-3">
-              <div className="p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl">
-                <span className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-bold block">Aggregated Volume</span>
-                <span className="text-lg font-black font-mono text-emerald-600 dark:text-emerald-400">
-                  ${quickPeekCluster.total_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                </span>
-              </div>
-              <div className="p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl">
-                <span className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-bold block">Transaction Count</span>
-                <span className="text-lg font-black font-mono text-slate-900 dark:text-white">
-                  {quickPeekCluster.transaction_count} txns
-                </span>
-              </div>
+              <StatTile
+                label="Aggregated volume"
+                valueClassName="text-lg"
+                value={`$${quickPeekCluster.total_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
+              />
+              <StatTile
+                label="Transaction count"
+                valueClassName="text-lg"
+                value={`${quickPeekCluster.transaction_count} txns`}
+              />
             </div>
 
             {/* Corporate Profile Card */}

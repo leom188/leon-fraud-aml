@@ -95,7 +95,7 @@ export const CompletionToast: React.FC<CompletionToastProps> = ({
     <div
       className="fixed top-4 right-4 z-[9999] w-[380px] max-w-[calc(100vw-2rem)] rounded-xl
                  shadow-2xl border border-slate-200 dark:border-slate-700
-                 bg-white dark:bg-[#12161F]
+                 bg-popover
                  animate-in fade-in slide-in-from-top-3 duration-300"
     >
       <div className="h-1 w-full overflow-hidden rounded-t-xl">
@@ -128,7 +128,7 @@ export const CompletionToast: React.FC<CompletionToastProps> = ({
         {isInUndoWindow && onUndo && (
           <div className="ml-9 mb-3 flex items-center gap-2 text-[11px] text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-lg px-2.5 py-1.5">
             <div className="w-2 h-2 rounded-full bg-amber-400 shrink-0" style={{ opacity: Math.max(0.3, undoProgress / 100) }} />
-            <span>Closing in progress — </span>
+            <span>Closing in progress ï¿½ </span>
             <button onClick={() => dismiss(onUndo)} className="font-bold underline underline-offset-2 cursor-pointer hover:text-amber-900 dark:hover:text-amber-300 flex items-center gap-1">
               <RotateCcw size={10} />
               Undo
@@ -157,7 +157,7 @@ export const CompletionToast: React.FC<CompletionToastProps> = ({
 
         {showAdvanceBar && (
           <p className="ml-9 mt-2.5 text-[10px] text-slate-400 dark:text-slate-500 font-mono">
-            Auto-advancing in {autoAdvanceSeconds}s…
+            Auto-advancing in {autoAdvanceSeconds}sï¿½
           </p>
         )}
       </div>

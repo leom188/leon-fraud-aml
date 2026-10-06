@@ -237,7 +237,7 @@ const RuleEngineView = ({ onNavigate, dataState }) => {
   };
 
   return (
-    <div className="flex h-full overflow-hidden bg-slate-50 dark:bg-[#0B0E14] text-slate-900 dark:text-slate-100 font-sans transition-colors duration-200">
+    <div className="flex h-full overflow-hidden bg-background text-foreground font-sans transition-colors duration-200">
 
       {/* 1. RULE LIBRARY SIDEBAR */}
       <aside className="w-80 bg-white dark:bg-slate-950/80 border-r border-slate-200 dark:border-slate-800/80 flex flex-col shrink-0 transition-colors duration-200">

@@ -29,7 +29,7 @@ class ErrorBoundary extends Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen bg-slate-100 dark:bg-[#0B0E14] text-slate-900 dark:text-white p-8 flex flex-col items-center justify-center font-mono">
+        <div className="min-h-screen bg-background text-foreground p-8 flex flex-col items-center justify-center font-mono">
           <div className="max-w-2xl w-full bg-rose-50 dark:bg-rose-950/90 border-2 border-rose-500 rounded-2xl p-6 shadow-2xl space-y-4">
             <div className="flex items-center space-x-3 text-rose-600 dark:text-rose-300">
               <span className="text-2xl">⚠️</span>
@@ -87,8 +87,9 @@ function App() {
     const routeMap = {
       home: '/',
       explorer: '/explorer',
-      dashboard: '/triage',
-      investigation: '/triage',
+      dashboard: '/explorer',
+      investigation: '/explorer',
+      triage: '/explorer',
       rules: '/rules',
       reports: '/reports',
       watchlists: '/watchlists',
@@ -133,10 +134,11 @@ function App() {
               }
             />
 
-            {/* 3. ENTITY TRIAGE & INVESTIGATION VIEW (Supports deep link to cluster!) */}
-            <Route path="/triage/:groupId?" element={<TriageView />} />
-            <Route path="/dashboard" element={<Navigate to="/triage" replace />} />
-            <Route path="/investigation" element={<Navigate to="/triage" replace />} />
+            {/* 3. ENTITY TRIAGE & INVESTIGATION VIEW (Accessed by drilling down from cluster) */}
+            <Route path="/triage/:groupId" element={<TriageView />} />
+            <Route path="/triage" element={<Navigate to="/explorer" replace />} />
+            <Route path="/dashboard" element={<Navigate to="/explorer" replace />} />
+            <Route path="/investigation" element={<Navigate to="/explorer" replace />} />
 
             {/* 4. RULE ENGINE & MANAGEMENT */}
             <Route

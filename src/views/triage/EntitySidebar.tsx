@@ -35,24 +35,17 @@ export const EntitySidebar: React.FC<EntitySidebarProps> = ({
     });
   }, [entities, searchQuery, directionFilter]);
 
-  const criticalCount = entities.filter(e => e.risk_level === 'Critical').length;
-
   return (
-    <div className="w-80 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-[#10141E] flex flex-col shrink-0 select-none transition-colors duration-200">
+    <div className="w-80 border-r border-border bg-card flex flex-col shrink-0 select-none transition-colors duration-200">
       {/* Top Header & Search */}
-      <div className="p-3 border-b border-slate-200 dark:border-slate-800/80 space-y-2.5">
+      <div className="p-3 border-b border-border space-y-2.5">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <Network size={16} className="text-sky-600 dark:text-sky-400" />
+            <Network size={16} className="text-primary" />
             <span className="text-xs font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wider">
               Entity Clusters ({entities.length})
             </span>
           </div>
-          {criticalCount > 0 && (
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-800">
-              {criticalCount} Critical
-            </span>
-          )}
         </div>
 
         {/* Search Bar */}
@@ -63,7 +56,7 @@ export const EntitySidebar: React.FC<EntitySidebarProps> = ({
             placeholder="Filter entities, emails, accounts..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-8 pr-3 py-1.5 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-sky-500"
+            className="w-full pl-8 pr-3 py-1.5 bg-background border border-border rounded-lg text-xs text-foreground placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-ring"
           />
         </div>
 
@@ -73,10 +66,10 @@ export const EntitySidebar: React.FC<EntitySidebarProps> = ({
             <button
               key={dir}
               onClick={() => setDirectionFilter(dir)}
-              className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors cursor-pointer ${
+              className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors cursor-pointer ${
                 directionFilter === dir
-                  ? 'bg-sky-600 text-white'
-                  : 'bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800'
+                  ? 'bg-primary text-primary-foreground shadow-xs'
+                  : 'bg-muted text-muted-foreground hover:bg-muted/70 hover:text-foreground'
               }`}
             >
               {dir === 'ALL' ? 'All Rails' : dir}
@@ -86,7 +79,7 @@ export const EntitySidebar: React.FC<EntitySidebarProps> = ({
       </div>
 
       {/* Cluster Tree List */}
-      <div className="flex-1 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800/50">
+      <div className="flex-1 overflow-y-auto divide-y divide-border">
         {filteredEntities.length === 0 ? (
           <div className="p-6 text-center text-xs text-slate-400">
             No matching entities found.
@@ -94,43 +87,29 @@ export const EntitySidebar: React.FC<EntitySidebarProps> = ({
         ) : (
           filteredEntities.map((entity) => {
             const isSelected = selectedId === entity.id;
-            const isCritical = entity.risk_level === 'Critical';
-            const isElevated = entity.risk_level === 'Elevated';
-
             return (
               <button
                 key={entity.id}
                 onClick={() => onSelect(entity.id)}
                 className={`w-full text-left p-3 transition-all cursor-pointer flex flex-col space-y-1.5 relative ${
                   isSelected
-                    ? 'bg-sky-50 dark:bg-sky-950/40 border-l-4 border-sky-500'
-                    : 'hover:bg-slate-50 dark:hover:bg-slate-900/60'
+                    ? 'bg-accent border-l-4 border-primary'
+                    : 'hover:bg-muted/50'
                 }`}
               >
-                {/* Title & Badge */}
+                {/* Title & Direction */}
                 <div className="flex items-center justify-between">
-                  <span className="font-bold text-xs text-slate-900 dark:text-slate-100 truncate max-w-[170px]" title={entity.grouping_key}>
+                  <span className="font-bold text-xs text-slate-900 dark:text-slate-100 truncate max-w-[190px]" title={entity.grouping_key}>
                     {entity.grouping_key}
                   </span>
-                  <span
-                    className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${
-                      isCritical
-                        ? 'bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-800'
-                        : isElevated
-                        ? 'bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800'
-                        : 'bg-emerald-100 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
-                    }`}
-                  >
-                    {entity.risk_level}
+                  <span className="font-mono text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-1.5 py-0.5 rounded">
+                    {entity.transaction_direction}
                   </span>
                 </div>
 
-                {/* Parent Client & Direction */}
-                <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
-                  <span className="truncate max-w-[150px]">{entity.client_name}</span>
-                  <span className="font-mono text-[10px] bg-slate-100 dark:bg-slate-800 px-1.5 py-0.2 rounded">
-                    {entity.transaction_direction}
-                  </span>
+                {/* Parent Client */}
+                <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                  {entity.client_name}
                 </div>
 
                 {/* Metrics Footer */}

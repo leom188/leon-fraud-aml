@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Mail, ArrowUpDown, User, ChevronRight, CheckCircle2, Eye, EyeOff } from 'lucide-react';
 import { CounterpartyStat, TransactionRecord } from '../../types/rails';
 import { formatDisplayDate } from '../../utils/dateUtils';
+import { hasAlert, isOpenAlert } from '../../utils/alertUtils';
 
 interface SenderDrilldownViewProps {
   counterparties: CounterpartyStat[];
@@ -15,12 +16,6 @@ interface SenderDrilldownViewProps {
 
 type SortField = 'email' | 'volume' | 'txns' | 'avg' | 'first_seen' | 'status';
 
-/** Returns true if a transaction is still open / not yet resolved */
-function isOpenAlert(tx: TransactionRecord): boolean {
-  const s = (tx.alert_close_type || '').trim();
-  return !s || s === 'Open Alert' || s === '0';
-}
-
 /** Derive per-counterparty alert status from the live transaction list */
 function cpAlertStatus(email: string, transactions: TransactionRecord[]): 'open' | 'resolved' | 'no_alert' {
   const lc = email.toLowerCase().trim();
@@ -32,7 +27,12 @@ function cpAlertStatus(email: string, transactions: TransactionRecord[]): 'open'
       tx.recipient_name?.toLowerCase().trim() === lc
   );
   if (related.length === 0) return 'no_alert';
-  const hasOpen = related.some(isOpenAlert);
+
+  // Only transactions that triggered alerts define open/resolved status
+  const alerted = related.filter(hasAlert);
+  if (alerted.length === 0) return 'no_alert';
+
+  const hasOpen = alerted.some(isOpenAlert);
   return hasOpen ? 'open' : 'resolved';
 }
 
@@ -46,7 +46,7 @@ export const SenderDrilldownView: React.FC<SenderDrilldownViewProps> = ({
 }) => {
   const [sortField, setSortField] = useState<SortField>('volume');
   const [sortAsc, setSortAsc] = useState(false);
-  const [showResolved, setShowResolved] = useState(true);
+  const [showResolved, setShowResolved] = useState(false);
   const isOutgoing = direction === 'Outgoing';
 
   // Enrich each counterparty with its live alert status
@@ -58,12 +58,19 @@ export const SenderDrilldownView: React.FC<SenderDrilldownViewProps> = ({
     [counterparties, transactions]
   );
 
-  const resolvedCount = enriched.filter(cp => cp.alertStatus === 'resolved').length;
-  const openCount = enriched.filter(cp => cp.alertStatus === 'open').length;
+  // Exclude counterparties that have NO alerts at all — this drilldown is strictly for alert triage
+  const withAlerts = useMemo(() =>
+    enriched.filter(cp => cp.alertStatus !== 'no_alert'),
+    [enriched]
+  );
 
+  const resolvedCount = withAlerts.filter(cp => cp.alertStatus === 'resolved').length;
+  const openCount = withAlerts.filter(cp => cp.alertStatus === 'open').length;
+
+  // By default, ONLY show senders/payees with open alerts
   const filtered = useMemo(() =>
-    showResolved ? enriched : enriched.filter(cp => cp.alertStatus !== 'resolved'),
-    [enriched, showResolved]
+    showResolved ? withAlerts : withAlerts.filter(cp => cp.alertStatus === 'open'),
+    [withAlerts, showResolved]
   );
 
   const sortedList = useMemo(() => [...filtered].sort((a, b) => {
@@ -109,36 +116,38 @@ export const SenderDrilldownView: React.FC<SenderDrilldownViewProps> = ({
   );
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden bg-slate-50 dark:bg-[#0B0E14] transition-colors duration-200">
+    <div className="flex-1 flex flex-col overflow-hidden bg-background transition-colors duration-200">
       {/* Header Banner */}
-      <div className="p-4 bg-white dark:bg-[#10141E] border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3">
+      <div className="p-4 bg-card border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3">
         <div className="min-w-0">
           <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center space-x-2">
             <Mail size={16} className="text-sky-600 dark:text-sky-400 shrink-0" />
             <span>Counterparty Dispersion Drilldown</span>
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            {openCount} open · {resolvedCount} resolved · {counterparties.length} total counterparties.
+            {openCount} with open alerts{resolvedCount > 0 ? ` · ${resolvedCount} resolved` : ''}.
             Click any row to view its transactions.
           </p>
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          {/* Show Resolved Toggle */}
-          <button
-            onClick={() => setShowResolved(v => !v)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold border transition-all cursor-pointer ${
-              showResolved
-                ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800'
-                : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
-            }`}
-            title={showResolved ? 'Hide resolved counterparties' : `Show ${resolvedCount} resolved counterpart${resolvedCount !== 1 ? 'ies' : 'y'}`}
-          >
-            {showResolved ? <Eye size={12} /> : <EyeOff size={12} />}
-            <span>
-              {showResolved ? 'Hide Resolved' : `Show Resolved (${resolvedCount})`}
-            </span>
-          </button>
+          {/* Show Resolved Toggle — only present when resolved counterparties exist */}
+          {resolvedCount > 0 && (
+            <button
+              onClick={() => setShowResolved(v => !v)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold border transition-all cursor-pointer ${
+                showResolved
+                  ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
+              }`}
+              title={showResolved ? 'Hide resolved counterparties' : `Show ${resolvedCount} resolved counterpart${resolvedCount !== 1 ? 'ies' : 'y'}`}
+            >
+              {showResolved ? <Eye size={12} /> : <EyeOff size={12} />}
+              <span>
+                {showResolved ? 'Hide Resolved' : `Show Resolved (${resolvedCount})`}
+              </span>
+            </button>
+          )}
 
           {selectedSenderEmail && (
             <button
@@ -166,13 +175,13 @@ export const SenderDrilldownView: React.FC<SenderDrilldownViewProps> = ({
               <th className="w-8 p-3" />
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60 bg-white dark:bg-[#10141E]">
+          <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60 bg-card">
             {sortedList.length === 0 ? (
               <tr>
                 <td colSpan={8} className="p-10 text-center text-slate-400 text-xs">
                   {resolvedCount > 0 && !showResolved
-                    ? `All ${resolvedCount} counterpart${resolvedCount !== 1 ? 'ies' : 'y'} resolved — toggle "Show Resolved" to review them.`
-                    : 'No counterparties found.'}
+                    ? `All ${resolvedCount} counterpart${resolvedCount !== 1 ? 'ies' : 'y'} with alerts have been resolved — toggle "Show Resolved" to review them.`
+                    : 'No counterparties with open alerts found.'}
                 </td>
               </tr>
             ) : (

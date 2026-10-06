@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { X, FileText, CheckCircle, ShieldAlert, Copy, Check, Code, List } from 'lucide-react';
+import { X, FileText, CheckCircle, ShieldAlert, ShieldOff, Copy, Check, Code, List } from 'lucide-react';
 import { TransactionRecord } from '../../types/rails';
 import { Button } from '../../components/ui/button';
 import { Badge } from '../../components/ui/badge';
 import { KeywordHighlighter } from './KeywordHighlighter';
 import { formatDisplayDate } from '../../utils/dateUtils';
+import { hasAlert } from '../../utils/alertUtils';
 
 interface TransactionDetailDrawerProps {
   transaction: TransactionRecord | null;
@@ -31,7 +32,7 @@ export const TransactionDetailDrawer: React.FC<TransactionDetailDrawerProps> = (
   };
 
   return (
-    <div className="fixed inset-y-0 right-0 w-[480px] bg-white dark:bg-[#10141E] border-l border-slate-200 dark:border-slate-800 shadow-2xl z-50 flex flex-col transition-all duration-300 animate-in slide-in-from-right">
+    <div className="fixed inset-y-0 right-0 w-[480px] bg-card border-l border-slate-200 dark:border-slate-800 shadow-2xl z-50 flex flex-col transition-all duration-300 animate-in slide-in-from-right">
       {/* Drawer Header */}
       <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
         <div className="flex items-center space-x-2">
@@ -209,34 +210,41 @@ export const TransactionDetailDrawer: React.FC<TransactionDetailDrawerProps> = (
       {/* Drawer Action Footer: Instant Alert Disposition */}
       <div className="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/90 space-y-2">
         <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
-          Quick Disposition
+          Alert Disposition
         </span>
-        <div className="grid grid-cols-3 gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => onResolve(transaction.id, 109, 'False Positive')}
-            className="text-[11px] font-semibold text-emerald-600 border-emerald-300 dark:border-emerald-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
-          >
-            109 (FP)
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => onResolve(transaction.id, 110, 'UTR')}
-            className="text-[11px] font-semibold text-rose-600 border-rose-300 dark:border-rose-800 hover:bg-rose-50 dark:hover:bg-rose-950/40"
-          >
-            110 (UTR)
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => onResolve(transaction.id, 111, 'RFI')}
-            className="text-[11px] font-semibold text-amber-600 border-amber-300 dark:border-amber-800 hover:bg-amber-50 dark:hover:bg-amber-950/40"
-          >
-            111 (RFI)
-          </Button>
-        </div>
+        {!hasAlert(transaction) ? (
+          <div className="flex items-center space-x-2 py-2 px-3 rounded-lg bg-slate-100 dark:bg-slate-800/80 text-slate-500 dark:text-slate-400 text-xs font-mono border border-slate-200 dark:border-slate-700">
+            <ShieldOff size={14} className="shrink-0 text-slate-400" />
+            <span>No alert on transaction — no action required</span>
+          </div>
+        ) : (
+          <div className="grid grid-cols-3 gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => onResolve(transaction.id, 109, 'False Positive')}
+              className="text-[11px] font-semibold text-emerald-600 border-emerald-300 dark:border-emerald-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+            >
+              109 (FP)
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => onResolve(transaction.id, 110, 'UTR')}
+              className="text-[11px] font-semibold text-rose-600 border-rose-300 dark:border-rose-800 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+            >
+              110 (UTR)
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => onResolve(transaction.id, 111, 'RFI')}
+              className="text-[11px] font-semibold text-amber-600 border-amber-300 dark:border-amber-800 hover:bg-amber-50 dark:hover:bg-amber-950/40"
+            >
+              111 (RFI)
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );

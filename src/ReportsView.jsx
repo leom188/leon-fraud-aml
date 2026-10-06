@@ -36,7 +36,10 @@ const ReportsView = ({ onNavigate, dataState }) => {
     try {
       const wb = XLSX.utils.book_new();
 
+      let filename = `LEON_Report_${new Date().toISOString().slice(0, 10)}.xlsx`;
+
       if (reportType === 'high_risk_cluster') {
+        filename = `LEON_High_Risk_Clusters_${new Date().toISOString().slice(0, 10)}.xlsx`;
         const clusterData = (criticalGroups.length > 0 ? criticalGroups : groups).map(g => ({
           'Entity Grouping Key': g.grouping_key,
           'Grouping Field': g.grouping_key_source,
@@ -52,8 +55,8 @@ const ReportsView = ({ onNavigate, dataState }) => {
 
         const ws = XLSX.utils.json_to_sheet(clusterData);
         XLSX.utils.book_append_sheet(wb, ws, 'High_Risk_Clusters');
-        XLSX.writeFile(wb, `LEON_High_Risk_Clusters_${new Date().toISOString().slice(0, 10)}.xlsx`);
       } else if (reportType === 'keyword_breach') {
+        filename = `LEON_Keyword_Breach_Audit_${new Date().toISOString().slice(0, 10)}.xlsx`;
         const keywordTxns = [];
         groups.forEach(g => {
           (g.transactions || []).forEach(tx => {
@@ -74,8 +77,8 @@ const ReportsView = ({ onNavigate, dataState }) => {
 
         const ws = XLSX.utils.json_to_sheet(keywordTxns.length > 0 ? keywordTxns : [{ Message: 'No keyword breaches in active batch' }]);
         XLSX.utils.book_append_sheet(wb, ws, 'Keyword_Audit_Log');
-        XLSX.writeFile(wb, `LEON_Keyword_Breach_Audit_${new Date().toISOString().slice(0, 10)}.xlsx`);
       } else {
+        filename = `LEON_Full_Audit_Export_${new Date().toISOString().slice(0, 10)}.xlsx`;
         const allTxns = (dataState?.normalizedRecords || groups.flatMap(g => g.transactions || [])).map(tx => ({
           'Ref Number': tx.reference_number || tx.ref,
           'Interac Ref': tx.interac_ref_1 || tx.interacRef1 || '',
@@ -88,13 +91,26 @@ const ReportsView = ({ onNavigate, dataState }) => {
 
         const ws = XLSX.utils.json_to_sheet(allTxns);
         XLSX.utils.book_append_sheet(wb, ws, 'Full_Audit_Export');
-        XLSX.writeFile(wb, `LEON_Full_Audit_Export_${new Date().toISOString().slice(0, 10)}.xlsx`);
       }
+
+      const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      }, 100);
 
       setSuccessToast(`Report package downloaded successfully.`);
       setTimeout(() => setSuccessToast(''), 4000);
     } catch (err) {
       console.error(err);
+      alert('Failed to generate report: ' + (err.message || String(err)));
     } finally {
       setExportingType(null);
     }

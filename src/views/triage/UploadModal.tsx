@@ -65,7 +65,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-md bg-white dark:bg-[#10141E] border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100">
+      <DialogContent className="max-w-md bg-popover border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100">
         <DialogHeader>
           <div className="flex items-center space-x-2 text-sky-600">
             <Upload size={18} />

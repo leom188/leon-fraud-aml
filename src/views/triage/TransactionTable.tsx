@@ -13,6 +13,7 @@ import { TransactionRecord } from '../../types/rails';
 import { KeywordHighlighter } from './KeywordHighlighter';
 import { formatDisplayDate } from '../../utils/dateUtils';
 import { Button } from '../../components/ui/button';
+import { hasAlert, isOpenAlert, isClosedAlert } from '../../utils/alertUtils';
 
 // ── Alert Status Pills ─────────────────────────────────────────────────────────
 type CloseStatus = 'open' | 'closed_fp' | 'closed_utr' | 'closed_rfi' | 'closed_other';
@@ -104,9 +105,10 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({
   // Filter
   const filteredTxns = useMemo(() => {
     return transactions.filter(tx => {
-      const isOpen = !tx.alert_close_type || tx.alert_close_type === 'Open Alert' || tx.alert_close_type === '0';
+      const isOpen = isOpenAlert(tx);
+      const isClosed = isClosedAlert(tx);
       if (statusFilter === 'OPEN' && !isOpen) return false;
-      if (statusFilter === 'CLOSED' && isOpen) return false;
+      if (statusFilter === 'CLOSED' && !isClosed) return false;
 
       if (!searchQuery.trim()) return true;
       const q = searchQuery.toLowerCase();
@@ -140,19 +142,21 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({
     }
   };
 
-  const isAllSelected = sortedTxns.length > 0 && sortedTxns.every(t => selectedRefs.has(t.id));
-  const isPartiallySelected = sortedTxns.some(t => selectedRefs.has(t.id)) && !isAllSelected;
+  // Only transactions that actually have alerts can be selected for resolution
+  const actionableTxns = useMemo(() => sortedTxns.filter(hasAlert), [sortedTxns]);
+  const isAllSelected = actionableTxns.length > 0 && actionableTxns.every(t => selectedRefs.has(t.id));
+  const isPartiallySelected = actionableTxns.some(t => selectedRefs.has(t.id)) && !isAllSelected;
 
   const handleToggleSelectAll = () => {
     if (isAllSelected) {
       onClearSelection();
     } else {
-      onSelectAll(sortedTxns.map(t => t.id));
+      onSelectAll(actionableTxns.map(t => t.id));
     }
   };
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden bg-slate-50 dark:bg-[#0B0E14] transition-colors duration-200">
+    <div className="flex-1 flex flex-col overflow-hidden bg-background transition-colors duration-200">
       {/* Active Counterparty Drill-down Banner */}
       {selectedSenderFilter && (
         <div className="bg-sky-50 dark:bg-sky-950/60 border-b border-sky-200 dark:border-sky-800/80 px-4 py-2 flex items-center justify-between text-xs animate-in fade-in shrink-0">
@@ -181,7 +185,7 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({
       )}
 
       {/* Control Bar: Filter, Search, Bulk Actions */}
-      <div className="p-3 bg-white dark:bg-[#10141E] border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 shrink-0">
+      <div className="p-3 bg-card border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 shrink-0">
         <div className="flex items-center space-x-3">
           {/* Quick Status Filter Tabs */}
           <div className="bg-slate-100 dark:bg-slate-900 p-0.5 rounded-lg border border-slate-200 dark:border-slate-800 flex text-xs">
@@ -314,7 +318,7 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60 bg-white dark:bg-[#10141E]">
+          <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60 bg-card">
             {sortedTxns.length === 0 ? (
               <tr>
                 <td colSpan={selectedSenderFilter ? 9 : 8} className="p-8 text-center text-slate-400">
@@ -335,21 +339,32 @@ export const TransactionTable: React.FC<TransactionTableProps> = ({
                         : 'border-l-transparent'
                     }`}
                   >
-                    {/* Checkbox */}
+                    {/* Checkbox — only available for transactions with alerts */}
                     <td
                       className="p-3 text-center"
                       onClick={(e) => {
                         e.stopPropagation();
-                        onToggleSelect(tx.id);
+                        if (hasAlert(tx)) {
+                          onToggleSelect(tx.id);
+                        }
                       }}
                     >
-                      <button className="cursor-pointer text-slate-400 hover:text-sky-600">
-                        {isSelected ? (
-                          <CheckSquare size={15} className="text-sky-600" />
-                        ) : (
-                          <Square size={15} />
-                        )}
-                      </button>
+                      {hasAlert(tx) ? (
+                        <button className="cursor-pointer text-slate-400 hover:text-sky-600">
+                          {isSelected ? (
+                            <CheckSquare size={15} className="text-sky-600" />
+                          ) : (
+                            <Square size={15} />
+                          )}
+                        </button>
+                      ) : (
+                        <span
+                          className="text-slate-300 dark:text-slate-600 font-mono text-xs select-none cursor-default"
+                          title="No alert on transaction — no action required"
+                        >
+                          —
+                        </span>
+                      )}
                     </td>
 
                     {/* Date */}

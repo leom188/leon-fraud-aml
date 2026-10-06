@@ -142,7 +142,7 @@ export const SettingsView = ({
   };
 
   return (
-    <div className="flex-1 flex flex-col min-w-0 bg-slate-50 dark:bg-[#0B0E14] text-slate-900 dark:text-slate-100 overflow-hidden font-sans transition-colors duration-200">
+    <div className="flex-1 flex flex-col min-w-0 bg-background text-foreground overflow-hidden font-sans transition-colors duration-200">
       
       {/* Toast Notification */}
       {saveToast && (
@@ -153,7 +153,7 @@ export const SettingsView = ({
       )}
 
       {/* HEADER BAR */}
-      <header className="p-6 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-[#10141E] flex flex-wrap justify-between items-center gap-4 shrink-0 shadow-sm dark:shadow-lg transition-colors duration-200">
+      <header className="p-6 border-b border-border bg-card flex flex-wrap justify-between items-center gap-4 shrink-0 transition-colors duration-200">
         <div>
           <div className="flex items-center space-x-3">
             <div className="p-2.5 rounded-xl bg-sky-50 dark:bg-sky-500/10 border border-sky-200 dark:border-sky-500/30 text-sky-600 dark:text-sky-400">

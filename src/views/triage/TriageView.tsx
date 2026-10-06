@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useTriageStore } from '../../store/useTriageStore';
 import { TransactionRecord } from '../../types/rails';
 import { resolveColumnLabel } from '../../utils/columnMapping';
+import { hasAlert, isOpenAlert } from '../../utils/alertUtils';
 
 // Modular Sub-components
 import { EntitySidebar } from './EntitySidebar';
@@ -57,10 +58,6 @@ export const TriageView: React.FC = () => {
   }
   const [completionToast, setCompletionToast] = useState<CompletionToastState | null>(null);
   const toastKeyRef = useRef(0);
-
-  // Helper: is a transaction open (not closed)?
-  const isOpenAlert = (tx: TransactionRecord) =>
-    !tx.alert_close_type || tx.alert_close_type === 'Open Alert' || tx.alert_close_type === '0';
 
   // Snapshot for undo: store pre-resolution alert_close_types keyed by tx.id
   const pendingUndoRef = useRef<Map<string, string>>(new Map());
@@ -151,14 +148,22 @@ export const TriageView: React.FC = () => {
   const doResolve = useCallback((refs: string[], closeCode: number, label: string) => {
     if (!currentEntity) return;
 
+    // Only resolve transactions that actually have triggered alert rules (no action for No Alert)
+    const validRefs = refs.filter(ref => {
+      const tx = currentEntity.transactions.find(t => t.id === ref);
+      return tx && hasAlert(tx);
+    });
+
+    if (validRefs.length === 0) return;
+
     // Snapshot pre-resolution close types for undo
     const snapshot = new Map<string, string>();
     currentEntity.transactions.forEach(tx => {
-      if (refs.includes(tx.id)) snapshot.set(tx.id, tx.alert_close_type || '');
+      if (validRefs.includes(tx.id)) snapshot.set(tx.id, tx.alert_close_type || '');
     });
     pendingUndoRef.current = snapshot;
 
-    const resolutions = refs.map(txRef => ({
+    const resolutions = validRefs.map(txRef => ({
       txRef,
       closeType: closeCode,
       closeTypeLabel: label,
@@ -172,7 +177,7 @@ export const TriageView: React.FC = () => {
     // After resolution, check completion — use the UPDATED tx state
     // (resolveAlerts is synchronous in Zustand, so dataState is stale here;
     //  we simulate the post-resolution state for detection purposes)
-    const closedSet = new Set(refs);
+    const closedSet = new Set(validRefs);
     const txAfter = currentEntity.transactions.map(tx =>
       closedSet.has(tx.id)
         ? { ...tx, alert_close_type: `${closeCode} (${label})` }
@@ -309,7 +314,7 @@ export const TriageView: React.FC = () => {
     : [];
 
   return (
-    <div className="flex h-full w-full overflow-hidden bg-slate-100 dark:bg-[#0B0E14] relative">
+    <div className="flex h-full w-full overflow-hidden bg-background relative">
       {/* Completion Toast (counterparty / entity fully resolved) */}
       {completionToast && (
         <CompletionToast
