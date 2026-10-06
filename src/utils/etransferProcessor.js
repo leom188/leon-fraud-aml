@@ -526,8 +526,15 @@ export function groupTransactions(normalizedRecords) {
     }
 
     const containsKeyword = group.transactions.some(tx => {
-      const text = `${tx.memo || ''} ${tx.sec_answer || ''} ${tx.recipient_name || ''} ${tx.sender_name || ''}`.toLowerCase();
-      return text.includes('weed') || text.includes('canna') || text.includes('crypto') || text.includes('wire');
+      const memoText = `${tx.memo || ''} ${tx.sec_answer || ''} ${tx.sec_question || ''}`.toLowerCase();
+      return (
+        memoText.includes('weed') ||
+        memoText.includes('canna') ||
+        memoText.includes('shatter') ||
+        memoText.includes('edible') ||
+        memoText.includes('crypto') ||
+        memoText.includes('wire')
+      );
     });
 
     if (containsKeyword) {

@@ -11,7 +11,7 @@ import {
   TransactionDirection
 } from '../../../types/rails';
 import { ETRANSFER_FIELD_DEFINITIONS, ETRANSFER_VALUE_DECODERS } from './fieldDefs';
-import { containsHighRiskKeyword } from '../../../utils/keywordUtils';
+import { containsHighRiskKeyword, disambiguateTransactionKeywords } from '../../../utils/keywordUtils';
 import { parseTransactionDate } from '../../../utils/dateUtils';
 
 export function cleanValue(val: any): string | null {
@@ -333,12 +333,12 @@ export function groupEtransferTransactions(deduplicatedRecords: TransactionRecor
       if (riskScore > 70) riskLevel = 'Elevated';
     }
 
-    const containsKeyword = group.transactions.some(tx => {
-      const text = `${tx.memo || ''} ${tx.sec_answer || ''} ${tx.recipient_name || ''} ${tx.sender_name || ''}`;
-      return containsHighRiskKeyword(text);
-    });
+    // Forensic keyword disambiguation (avoids treating benign surnames like "Green" as illicit narcotics)
+    const keywordEvals = group.transactions.map(tx => disambiguateTransactionKeywords(tx));
+    const hasGenuineIllicit = keywordEvals.some(e => e.isGenuineIllicit);
+    const hasAnyKeywordHit = keywordEvals.some(e => e.hasKeywordHit);
 
-    if (containsKeyword) {
+    if (hasGenuineIllicit) {
       riskLevel = 'Critical';
       riskScore = Math.max(riskScore, 85);
     }
@@ -417,7 +417,7 @@ export function groupEtransferTransactions(deduplicatedRecords: TransactionRecor
       has_unknown_direction: group.has_unknown_direction,
       risk_level: riskLevel,
       risk_score: riskScore,
-      contains_keyword: containsKeyword,
+      contains_keyword: hasGenuineIllicit,
 
       distinct_emails_count: distinctEmailsCount,
       fan_out_ratio: fanOutRatio,

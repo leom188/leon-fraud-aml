@@ -135,16 +135,43 @@ export const AiAnalysisModal: React.FC<AiAnalysisModalProps> = ({
       value: `${entity.distinct_emails_count} distinct counterparties (fan-out: ${entity.fan_out_ratio})`,
       severity: entity.distinct_emails_count > 20 ? 'high' : 'medium',
     },
-    {
-      icon: AlertTriangle,
-      color: entity.contains_keyword ? 'text-rose-600 dark:text-rose-400' : 'text-slate-500 dark:text-slate-400',
-      bg: entity.contains_keyword ? 'bg-rose-50 dark:bg-rose-950/60' : 'bg-slate-50 dark:bg-slate-900/60',
-      label: 'Keyword Detection',
-      value: entity.contains_keyword
-        ? 'Illicit substance keywords detected (weed / canna / vape / dispensary)'
-        : 'No overt drug keywords detected in memo parameters',
-      severity: entity.contains_keyword ? 'critical' : 'clear',
-    },
+    (() => {
+      const hasSubstantiveIllicit = (entity.transactions || []).some(tx => {
+        const memo = `${tx.memo || ''} ${tx.sec_question || ''} ${tx.sec_answer || ''}`.toLowerCase();
+        return /canna|weed|shatter|edible|plug|vape|cart|loud|dispensary|psilo|pharma|xanax|oxy|percocet/.test(memo);
+      });
+      const hasRuleAlert = (entity.rule_names || []).some(r => /keyword|green/i.test(r)) || entity.contains_keyword;
+      const isNameMatch = hasRuleAlert && !hasSubstantiveIllicit;
+
+      if (hasSubstantiveIllicit) {
+        return {
+          icon: AlertTriangle,
+          color: 'text-rose-600 dark:text-rose-400',
+          bg: 'bg-rose-50 dark:bg-rose-950/60',
+          label: 'Keyword Forensic Verification',
+          value: 'Substantive illicit drug/contraband indicators verified in transaction memos',
+          severity: 'critical' as const,
+        };
+      }
+      if (isNameMatch) {
+        return {
+          icon: AlertTriangle,
+          color: 'text-amber-600 dark:text-amber-400',
+          bg: 'bg-amber-50 dark:bg-amber-950/60',
+          label: 'Keyword Alert Disambiguation',
+          value: 'Lexical scenario alert evaluated as False Positive (Matched legal surname with clean memos)',
+          severity: 'medium' as const,
+        };
+      }
+      return {
+        icon: AlertTriangle,
+        color: 'text-slate-500 dark:text-slate-400',
+        bg: 'bg-slate-50 dark:bg-slate-900/60',
+        label: 'Keyword Detection',
+        value: 'No adverse keywords detected across memos or security fields',
+        severity: 'clear' as const,
+      };
+    })(),
     {
       icon: TrendingUp,
       color: entity.volume_spike_pct > 25 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400',

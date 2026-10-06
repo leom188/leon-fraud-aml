@@ -112,7 +112,10 @@ export const buildEntityForensicState = (entity: GroupedEntity): string => {
       pct_new_counterparties: entity.pct_new_emails,
       volume_spike_percentage: entity.volume_spike_pct,
       interbank_routing_percentage: entity.interbank_pct,
-      adverse_keyword_detected: entity.contains_keyword,
+      lexical_rule_alert_triggered: entity.contains_keyword,
+      rule_alert_note: entity.contains_keyword 
+        ? 'A rule or scenario flagged a potential keyword match in this cluster. CAUTION: You must disambiguate whether this is a false positive (e.g., surname "Green", "Bud", "Herb", benign business name, or innocent memo) vs actual illicit contraband commerce.'
+        : 'No adverse lexical rule trigger recorded.',
       triggered_rules: entity.rule_names || []
     },
     sample_transaction_ledger: sampleTxns
@@ -135,13 +138,25 @@ export const analyzeEntityWithJev = async (
   const questionsPayload = {
     typology: {
       type: 'choice',
-      instructions: 'Classify the primary financial crime / AML typology for this entity transaction cluster.',
+      instructions:
+        'Classify the single most likely primary financial crime or AML typology for this Interac e-Transfer entity cluster. Evaluate behavioral signals in the transaction ledger, cluster metrics, memo text, security Q&A fields, and counterparty dispersion patterns. IMPORTANT CONTEXTUAL DISAMBIGUATION RULE: Words such as "Green", "Bud", "Herb", "Potter", or "Brown" occurring in individual legal names (e.g. Rachel Green, John Bud), standard business names (e.g. Green Valley Landscaping), or innocent memos (e.g. golf green fees, produce, rent) are FALSE POSITIVES and MUST NOT be classified as ILLICIT_RETAIL_KEYWORD. Only classify as ILLICIT_RETAIL_KEYWORD if the context clearly demonstrates sale of prohibited drugs, narcotics, illicit pharmaceuticals, tobacco, or contraband.',
       criteria: {
-        UNLICENSED_MSB_COMMERCIAL: 'Unlicensed money transmitter, illicit commercial sales, or unlicensed dispensary using personal e-transfers.',
-        HIGH_VELOCITY_FAN_OUT: 'High-velocity pass-through structuring, mule account dispersal, or rapid layering fan-out.',
-        ILLICIT_KEYWORD_CONTRABAND: 'Illicit substance/cannabis/contraband sales directly evidenced by keywords in memos/names.',
-        ACCOUNT_TAKEOVER_FRAUD: 'Compromised customer credentials or unauthorized push payments deviating from baseline.',
-        LEGITIMATE_COMMERCIAL_RETAIL: 'Normal commercial business flow, payroll dispersal, or benign consumer activity.'
+        ILLICIT_RETAIL_KEYWORD:
+          'Illicit retail or prohibited goods commerce. Payment memos, security Q&A, or transaction notes explicitly indicate illegal drug sales (canna, shatter, weed, plug, loud, cart, edibles), regulated pharmaceuticals (oxy, xanax, pills, pharma), tobacco, or adult content services. DO NOT select this if the keyword match is merely a person surname (e.g., Green, Bud, Herb) or benign commercial context.',
+        STRUCTURING_SMURFING:
+          'Structuring or threshold avoidance (smurfing). Transactions deliberately kept below reporting thresholds (e.g., repeated $200–$999 or $9,000–$9,900 amounts), round-dollar repetition, rapid sequential sends from the same sender to the same recipient, or deliberate splitting consistent with FINTRAC structuring indicators to evade Large Cash Transaction Report obligations.',
+        MULE_PASS_THROUGH:
+          'Mule account or layering pass-through. Account receives funds from multiple distinct senders and rapidly disperses to multiple distinct recipients with minimal hold time. High fan-out ratio, short inbound-to-outbound intervals, and low average transaction size relative to total volume, consistent with money mule layering operations.',
+        UNLICENSED_MSB:
+          'Unlicensed Money Services Business. Entity operating as an informal money transmitter, hawala network, or payment aggregator without FINTRAC MSB registration. Characterized by high transaction volume, high distinct counterparty count, commercial-velocity patterns through a personal account, and funds flowing between many unrelated individuals.',
+        SCAM_VICTIM_PROCEEDS:
+          'Fraud victim or scam proceeds. Pattern consistent with romance scam, investment fraud, pig-butchering, or social engineering. Typically one-directional: escalating or irregular amounts sent from a single sender to one beneficiary. Emotional or urgency memo text (urgent, help, loan, invest, crypto, profit, love, emergency). Victim profile shows uncharacteristic large outflows.',
+        ACCOUNT_COMPROMISE:
+          'Account takeover or unauthorized activity. Sudden behavioral deviation from the customer historical baseline: unexpected new recipients, high-value transfers at unusual hours, geographic anomalies, or rapid account balance depletion inconsistent with prior e-transfer patterns and not explained by known life events.',
+        TERRORIST_FINANCING_INDICATORS:
+          'Potential terrorist financing indicators. Small structured donations or transfers to multiple recipients with no apparent commercial purpose, especially combined with flagged entity names, high-risk geographic routing, or patterns matching FINTRAC terrorist financing typology guidance including recurring micro-transfers to foreign beneficiaries.',
+        COMPLIANT_COMMERCIAL:
+          'Legitimate commercial or normal personal activity. Includes false-positive rule alerts where words like "Green", "Herb", or "Bud" are only names or benign context. Transaction patterns consistent with verified business operations, payroll disbursements, routine personal transfers, or expected account behavior with no genuine illicit indicators.'
       }
     },
     str_escalation_required: {
@@ -224,11 +239,14 @@ const formatJevResponse = (
   const typologyKey = typologyAns.decision || typologyAns.choice || 'UNLICENSED_MSB_COMMERCIAL';
   const typologyDist = typologyAns.distribution || { [typologyKey]: typologyAns.confidence || 0.88 };
   const typologyMap: Record<string, string> = {
-    UNLICENSED_MSB_COMMERCIAL: 'Unlicensed MSB / Commercial Retail Funneling',
-    HIGH_VELOCITY_FAN_OUT: 'High-Velocity Rapid Pass-Through Dispersal',
-    ILLICIT_KEYWORD_CONTRABAND: 'Illicit Contraband / Substance Breach',
-    ACCOUNT_TAKEOVER_FRAUD: 'Unauthorized Account Compromise / ATO',
-    LEGITIMATE_COMMERCIAL_RETAIL: 'Legitimate Commercial / Retail Flow'
+    ILLICIT_RETAIL_KEYWORD:        'Illicit Retail / Prohibited Goods Commerce',
+    STRUCTURING_SMURFING:          'Structuring / Threshold Avoidance (Smurfing)',
+    MULE_PASS_THROUGH:             'Mule Account / Layering Pass-Through',
+    UNLICENSED_MSB:                'Unlicensed Money Services Business (MSB)',
+    SCAM_VICTIM_PROCEEDS:          'Fraud Victim / Scam Proceeds',
+    ACCOUNT_COMPROMISE:            'Account Takeover / Unauthorized Activity',
+    TERRORIST_FINANCING_INDICATORS:'Potential Terrorist Financing Indicators',
+    COMPLIANT_COMMERCIAL:          'Legitimate Commercial / Normal Activity'
   };
 
   // STR Noul
@@ -268,6 +286,17 @@ const formatJevResponse = (
     }
   };
 
+  const hasSubstantiveIllicit = (entity.transactions || []).some(tx => {
+    const memo = `${tx.memo || ''} ${tx.sec_question || ''} ${tx.sec_answer || ''}`.toLowerCase();
+    return /canna|weed|shatter|edible|plug|vape|cart|loud|dispensary|psilo|pharma|xanax|oxy|percocet/.test(memo);
+  });
+  const hasLexicalRuleHit = (entity.rule_names || []).some(r => /keyword|green/i.test(r)) || entity.contains_keyword;
+  const keywordStatusNote = hasSubstantiveIllicit
+    ? 'POSITIVE (Substantive contraband / illicit indicators identified in payment memo or security parameters)'
+    : hasLexicalRuleHit
+    ? 'FALSE POSITIVE MITIGATED (Rule triggered on candidate name/word, verified as benign legal surname or clean context)'
+    : 'NEGATIVE (No adverse keyword indicators)';
+
   const narrative = `INVESTIGATION DOSSIER — LEON AI DECISION ENGINE (${model})
 ================================================================================
 Generated: ${new Date().toISOString()} | Engine: TypeSafe Jev System-One (${isLive ? 'Live API Decision' : 'Calibrated Decision Engine'})
@@ -288,7 +317,7 @@ Total Volume Triaged: $${entity.total_amount.toLocaleString(undefined, { minimum
    • Assigned Severity Tier: ${riskTier} (Score: ${riskVal} / 4)
    • Counterparty Dispersion: ${entity.distinct_emails_count} distinct counterparties (Fan-out: ${entity.fan_out_ratio})
    • Velocity Acceleration: ${entity.volume_spike_pct}% volume surge relative to baseline
-   • Adverse Keyword Breach: ${entity.contains_keyword ? 'POSITIVE (Illicit retail/cannabis indicators)' : 'NEGATIVE'}
+   • Adverse Keyword Breach: ${keywordStatusNote}
    • Interbank Dispersal: ${entity.interbank_pct}% routed to external financial institutions
 
 4. RECOMMENDED COMPLIANCE DIRECTIVE:
@@ -337,41 +366,67 @@ const generateCalibratedFallback = (
   rawState: string,
   model: string
 ): JevDossierAnalysis => {
-  const isCritical = entity.risk_level === 'Critical' || entity.contains_keyword || entity.risk_score >= 80;
-  const isHigh = entity.risk_level === 'High' || entity.distinct_emails_count > 15 || entity.risk_score >= 60;
+  const hasSubstantiveIllicitMemo = (entity.transactions || []).some(tx => {
+    const memoText = `${tx.memo || ''} ${tx.sec_question || ''} ${tx.sec_answer || ''}`.toLowerCase();
+    return /canna|weed|shatter|edible|plug|vape|cart|loud|dispensary|psilo|pharma|xanax|oxy|percocet/.test(memoText);
+  });
+
+  const isNameOnlyAlert = !hasSubstantiveIllicitMemo && (
+    (entity.rule_names || []).some(r => /green|keyword/i.test(r)) ||
+    /green|bud|herb/i.test(entity.grouping_key) ||
+    /green|bud|herb/i.test(entity.client_name)
+  );
+
+  const isCritical = (entity.risk_level === 'Critical' && !isNameOnlyAlert) || hasSubstantiveIllicitMemo || entity.risk_score >= 80;
+  const isHigh = !isNameOnlyAlert && (entity.risk_level === 'High' || entity.distinct_emails_count > 15 || entity.risk_score >= 60);
+
+  // Determine most likely typology for calibrated fallback
+  const fallbackTypology = hasSubstantiveIllicitMemo
+    ? 'ILLICIT_RETAIL_KEYWORD'
+    : isNameOnlyAlert
+    ? 'COMPLIANT_COMMERCIAL'
+    : isCritical && (entity.fan_out_ratio || 0) > 5
+    ? 'MULE_PASS_THROUGH'
+    : isCritical
+    ? 'UNLICENSED_MSB'
+    : isHigh && (entity.fan_out_ratio || 0) > 3
+    ? 'STRUCTURING_SMURFING'
+    : isHigh
+    ? 'SCAM_VICTIM_PROCEEDS'
+    : 'COMPLIANT_COMMERCIAL';
 
   const mockApiData = {
     answers: {
       typology: {
-        decision: entity.contains_keyword 
-          ? 'ILLICIT_KEYWORD_CONTRABAND'
-          : isCritical 
-          ? 'UNLICENSED_MSB_COMMERCIAL' 
-          : isHigh 
-          ? 'HIGH_VELOCITY_FAN_OUT' 
-          : 'LEGITIMATE_COMMERCIAL_RETAIL',
-        confidence: entity.contains_keyword ? 0.96 : isCritical ? 0.91 : 0.84,
+        decision: fallbackTypology,
+        confidence: hasSubstantiveIllicitMemo ? 0.96 : isNameOnlyAlert ? 0.92 : isCritical ? 0.91 : isHigh ? 0.84 : 0.88,
         distribution: {
-          UNLICENSED_MSB_COMMERCIAL: isCritical ? 0.72 : 0.15,
-          HIGH_VELOCITY_FAN_OUT: isHigh ? 0.68 : 0.22,
-          ILLICIT_KEYWORD_CONTRABAND: entity.contains_keyword ? 0.94 : 0.02,
-          LEGITIMATE_COMMERCIAL_RETAIL: (!isCritical && !isHigh) ? 0.81 : 0.05
+          ILLICIT_RETAIL_KEYWORD:         hasSubstantiveIllicitMemo ? 0.93 : isNameOnlyAlert ? 0.02 : 0.03,
+          STRUCTURING_SMURFING:           (isHigh && !isCritical) ? 0.55 : 0.08,
+          MULE_PASS_THROUGH:              (isCritical && (entity.fan_out_ratio || 0) > 5) ? 0.78 : 0.06,
+          UNLICENSED_MSB:                 (isCritical && (entity.fan_out_ratio || 0) <= 5) ? 0.72 : 0.07,
+          SCAM_VICTIM_PROCEEDS:           (isHigh && !isCritical) ? 0.42 : 0.04,
+          ACCOUNT_COMPROMISE:             0.03,
+          TERRORIST_FINANCING_INDICATORS: 0.01,
+          COMPLIANT_COMMERCIAL:           isNameOnlyAlert ? 0.91 : (!isCritical && !isHigh) ? 0.85 : 0.04
         }
       },
       str_escalation_required: {
-        decision: isCritical || entity.contains_keyword,
-        probability: entity.contains_keyword ? 0.94 : isCritical ? 0.87 : isHigh ? 0.62 : 0.14,
+        decision: hasSubstantiveIllicitMemo || (isCritical && !isNameOnlyAlert),
+        probability: hasSubstantiveIllicitMemo ? 0.94 : isNameOnlyAlert ? 0.05 : isCritical ? 0.87 : isHigh ? 0.62 : 0.12,
         confidence: 0.93
       },
       risk_severity_rubric: {
-        decision: isCritical ? 4 : isHigh ? 3 : 2,
+        decision: isNameOnlyAlert ? 1 : isCritical ? 4 : isHigh ? 3 : 2,
         confidence: 0.89
       },
       recommended_action: {
-        decision: (isCritical || entity.contains_keyword) 
-          ? 'FILE_STR_SAR_ESCALATE' 
-          : isHigh 
-          ? 'REQUEST_RFI_DOCS' 
+        decision: hasSubstantiveIllicitMemo || (isCritical && !isNameOnlyAlert)
+          ? 'FILE_STR_SAR_ESCALATE'
+          : isNameOnlyAlert
+          ? 'CLOSE_COMPLIANT_NO_ACTION'
+          : isHigh
+          ? 'REQUEST_RFI_DOCS'
           : 'ENHANCED_30D_MONITORING',
         confidence: 0.92
       }
