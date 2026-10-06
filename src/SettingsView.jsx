@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Sliders,
   RotateCcw,
@@ -14,12 +14,21 @@ import {
   Sun,
   Moon,
   Monitor,
-  Palette
+  Palette,
+  Brain,
+  ExternalLink,
+  Key
 } from 'lucide-react';
 import { Card } from './components/ui/card';
 import { Button } from './components/ui/button';
 import { Badge } from './components/ui/badge';
 import { useTheme } from './utils/useTheme';
+import {
+  getOpenRouterApiKey,
+  setOpenRouterApiKey,
+  getJevModel,
+  setJevModel
+} from './services/ai/jevService';
 
 export const SettingsView = ({
   columnMappings,
@@ -32,6 +41,21 @@ export const SettingsView = ({
   const [editingId, setEditingId] = useState(null);
   const [tempLabel, setTempLabel] = useState('');
   const [saveToast, setSaveToast] = useState(null);
+
+  // AI & Jev Model State
+  const [openRouterKey, setOpenRouterKeyState] = useState('');
+  const [jevModel, setJevModelState] = useState('typesafe/jev-1.13');
+
+  useEffect(() => {
+    setOpenRouterKeyState(getOpenRouterApiKey());
+    setJevModelState(getJevModel());
+  }, []);
+
+  const handleSaveAiSettings = () => {
+    setOpenRouterApiKey(openRouterKey);
+    setJevModel(jevModel);
+    showToast('Saved OpenRouter API Key & Jev model configuration.');
+  };
 
   const rails = [
     { id: 'ETRANSFER', label: 'E-Transfer (Interac)', icon: SendHorizontal, countBadge: 'Active Rail' },
@@ -247,6 +271,85 @@ export const SettingsView = ({
                 </button>
               );
             })}
+          </div>
+        </Card>
+
+        {/* AI REASONING & DECISION ENGINE (TYPESAFE JEV ON OPENROUTER) */}
+        <Card className="p-5 rounded-2xl border border-sky-500/30 bg-gradient-to-br from-white to-sky-50/30 dark:from-slate-900 dark:to-sky-950/20 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+            <div className="flex items-center space-x-3">
+              <div className="p-2 rounded-lg bg-sky-500/10 text-sky-500 border border-sky-500/30">
+                <Brain size={18} />
+              </div>
+              <div>
+                <div className="flex items-center space-x-2">
+                  <h2 className="text-sm font-bold text-slate-900 dark:text-white">
+                    AI Typology Decision Engine (TypeSafe Jev)
+                  </h2>
+                  <Badge variant="cyan" className="font-mono text-[10px]">
+                    OpenRouter Decisions API
+                  </Badge>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Powers the <strong>AI Typology Dossier</strong> with probabilistic Choice, Noul (Yes/No), and Score decision calls.
+                </p>
+              </div>
+            </div>
+            
+            <a
+              href="https://openrouter.ai/keys"
+              target="_blank"
+              rel="noreferrer"
+              className="text-xs text-sky-600 dark:text-sky-400 hover:underline flex items-center space-x-1 font-medium"
+            >
+              <span>Manage OpenRouter Keys</span>
+              <ExternalLink size={12} />
+            </a>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="md:col-span-2">
+              <label className="text-[11px] uppercase font-bold text-slate-500 dark:text-slate-400 block mb-1">
+                OpenRouter API Key
+              </label>
+              <div className="relative">
+                <input
+                  type="password"
+                  value={openRouterKey}
+                  onChange={(e) => setOpenRouterKeyState(e.target.value)}
+                  placeholder="sk-or-v1-xxxxxxxxxxxxxxxxxxxxxxxx"
+                  className="w-full bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 px-3 py-2 rounded-xl text-xs border border-slate-300 dark:border-slate-800 font-mono focus:outline-none focus:border-sky-500 shadow-inner"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-[11px] uppercase font-bold text-slate-500 dark:text-slate-400 block mb-1">
+                Jev Decision Model
+              </label>
+              <select
+                value={jevModel}
+                onChange={(e) => setJevModelState(e.target.value)}
+                className="w-full bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 px-3 py-2 rounded-xl text-xs border border-slate-300 dark:border-slate-800 font-mono focus:outline-none focus:border-sky-500 cursor-pointer h-[38px]"
+              >
+                <option value="typesafe/jev-1.13">typesafe/jev-1.13 (Recommended)</option>
+                <option value="typesafe/jev-router">typesafe/jev-router</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between pt-4 mt-2 border-t border-slate-200/80 dark:border-slate-800/60">
+            <div className="text-[11px] text-slate-500 flex items-center space-x-1.5 font-mono">
+              <span className={`w-2 h-2 rounded-full ${openRouterKey ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
+              <span>{openRouterKey ? 'OpenRouter API Key Configured' : 'No API key set (Running in calibrated offline mode)'}</span>
+            </div>
+            <Button
+              size="sm"
+              onClick={handleSaveAiSettings}
+              className="text-xs font-bold bg-sky-600 dark:bg-sky-500 text-white dark:text-slate-950 hover:bg-sky-500 cursor-pointer"
+            >
+              Save AI Settings
+            </Button>
           </div>
         </Card>
 
